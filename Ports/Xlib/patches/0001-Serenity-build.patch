@@ -1,0 +1,42 @@
+From 56ad3c090aa62409d8d05516ae578b45b231ed2c Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <SultanovTS@yandex.ru>
+Date: Sat, 5 Feb 2022 20:35:53 +0300
+Subject: [PATCH libX11] Serenity build
+
+---
+ configure.ac  | 2 +-
+ src/GetDflt.c | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 92b740b..37a484a 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -388,7 +388,7 @@ AX_DEFINE_DIR(XKEYSYMDB, XKEYSYMDB, [Location of keysym database])
+ XERRORDB="${X11_DATADIR}/XErrorDB"
+ AX_DEFINE_DIR(XERRORDB, XERRORDB, [Location of error message database])
+ 
+-XORG_CHECK_MALLOC_ZERO
++# XORG_CHECK_MALLOC_ZERO
+ 
+ AC_CONFIG_FILES([Makefile
+ 		include/Makefile
+diff --git a/src/GetDflt.c b/src/GetDflt.c
+index c9222a2..21b0b69 100644
+--- a/src/GetDflt.c
++++ b/src/GetDflt.c
+@@ -105,9 +105,9 @@ GetHomeDir(
+ 	dest[len-1] = '\0';
+     } else {
+ 	if ((ptr = getenv("USER")))
+-	    pw = _XGetpwnam(ptr,pwparams);
++	    pw = getpwnam(ptr);
+ 	else
+-	    pw = _XGetpwuid(getuid(),pwparams);
++	    pw = getpwuid(getuid());
+ 	if (pw != NULL) {
+ 	    (void) strncpy(dest, pw->pw_dir, len-1);
+ 	    dest[len-1] = '\0';
+-- 
+2.25.1
+
