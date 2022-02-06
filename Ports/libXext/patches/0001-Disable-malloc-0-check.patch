@@ -1,0 +1,25 @@
+From 3df91e593642df45d2079f7201a1987ebd905fdd Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <SultanovTS@yandex.ru>
+Date: Sun, 6 Feb 2022 18:32:23 +0300
+Subject: [PATCH libXext] Disable malloc(0) check
+
+---
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index b2a28d1..e5619c9 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -23,7 +23,7 @@ XORG_WITH_XMLTO(0.0.22)
+ XORG_WITH_FOP
+ XORG_WITH_XSLTPROC
+ XORG_CHECK_SGML_DOCTOOLS(1.8)
+-XORG_CHECK_MALLOC_ZERO
++# XORG_CHECK_MALLOC_ZERO
+ 
+ # Determine .so library version per platform
+ # based on SharedXextRev in monolith xc/config/cf/*Lib.tmpl
+-- 
+2.25.1
+

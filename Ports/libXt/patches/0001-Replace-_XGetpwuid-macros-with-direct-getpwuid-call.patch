@@ -1,0 +1,37 @@
+From c55da635b25d9ef2c1b3a838acbaff6c8553fe59 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <SultanovTS@yandex.ru>
+Date: Sun, 6 Feb 2022 19:16:39 +0300
+Subject: [PATCH] Replace _XGetpwuid macros with direct getpwuid call
+
+---
+ src/Initialize.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/Initialize.c b/src/Initialize.c
+index 8ae54b4..b1252b1 100644
+--- a/src/Initialize.c
++++ b/src/Initialize.c
+@@ -323,7 +323,7 @@ _XtGetUserName(_XtString dest, int len)
+         dest[len - 1] = '\0';
+     }
+     else {
+-        if ((pw = _XGetpwuid(getuid(), pwparams)) != NULL) {
++        if ((pw = getpwuid(getuid())) != NULL) {
+             (void) strncpy(dest, pw->pw_name, (size_t) (len - 1));
+             dest[len - 1] = '\0';
+         }
+@@ -374,9 +374,9 @@ GetRootDirName(_XtString dest, int len)
+         struct passwd *pw;
+ 
+         if ((ptr = getenv("USER")))
+-            pw = _XGetpwnam(ptr, pwparams);
++            pw = getpwnam(ptr);
+         else
+-            pw = _XGetpwuid(getuid(), pwparams);
++            pw = getpwuid(getuid());
+         if (pw != NULL) {
+             (void) strncpy(dest, pw->pw_dir, (size_t) (len - 1));
+             dest[len - 1] = '\0';
+-- 
+2.25.1
+
