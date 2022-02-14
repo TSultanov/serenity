@@ -1,4 +1,4 @@
-From 06f273f3a35adbc492278f292134baa7ba056f17 Mon Sep 17 00:00:00 2001
+From 0898d1043be2b41dce96706707dedacb5f17198d Mon Sep 17 00:00:00 2001
 From: Timur Sultanov <SultanovTS@yandex.ru>
 Date: Sun, 6 Feb 2022 20:25:47 +0300
 Subject: [PATCH 22/24] O_NDLEAY

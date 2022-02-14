@@ -1,4 +1,4 @@
-From 166c59e29cd4c7c1546aac00d9a6734819616d3f Mon Sep 17 00:00:00 2001
+From 47e5b89438414a07f77db29f3d222f93e90d8d72 Mon Sep 17 00:00:00 2001
 From: Timur Sultanov <SultanovTS@yandex.ru>
 Date: Sun, 6 Feb 2022 19:52:28 +0300
 Subject: [PATCH 05/24] comment out IN6_IS_ADDR_UNSPECIFIED call

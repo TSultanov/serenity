@@ -1,4 +1,4 @@
-From d00258969c622ca3ffd2600a68e4660c4c18376c Mon Sep 17 00:00:00 2001
+From 8bc1440c948fc7ff3e673a3f4367007fe91cfd0b Mon Sep 17 00:00:00 2001
 From: Timur Sultanov <SultanovTS@yandex.ru>
 Date: Sun, 6 Feb 2022 20:29:36 +0300
 Subject: [PATCH 24/24] truncations

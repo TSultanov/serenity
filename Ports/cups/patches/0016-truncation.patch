@@ -1,4 +1,4 @@
-From 2ed995c871d752f9127909d7f5108e320c4bb537 Mon Sep 17 00:00:00 2001
+From b6f72057992c785fd418dfe5e013b569b9b9f7d3 Mon Sep 17 00:00:00 2001
 From: Timur Sultanov <SultanovTS@yandex.ru>
 Date: Sun, 6 Feb 2022 20:16:21 +0300
 Subject: [PATCH 16/24] truncation

@@ -1,4 +1,4 @@
-From 4851e8e53a3ace9661f2c29d199fc8aa208d79dd Mon Sep 17 00:00:00 2001
+From d60f40f495e2132853435eb821df544b64f19969 Mon Sep 17 00:00:00 2001
 From: Timur Sultanov <SultanovTS@yandex.ru>
 Date: Sun, 6 Feb 2022 20:08:13 +0300
 Subject: [PATCH 13/24] Fixing missing select.h header

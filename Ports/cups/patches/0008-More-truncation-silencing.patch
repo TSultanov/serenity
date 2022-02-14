@@ -1,4 +1,4 @@
-From c4fbe31448accc98254705fdd8259adaa295e108 Mon Sep 17 00:00:00 2001
+From d79f2f414729ee88a5deb965188f77b41ef20d8a Mon Sep 17 00:00:00 2001
 From: Timur Sultanov <SultanovTS@yandex.ru>
 Date: Sun, 6 Feb 2022 19:59:49 +0300
 Subject: [PATCH 08/24] More truncation silencing

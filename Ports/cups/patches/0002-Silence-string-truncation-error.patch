@@ -1,4 +1,4 @@
-From 4bbcbe8dc58fb5fcb2664c783788b810ed3604e4 Mon Sep 17 00:00:00 2001
+From dfd4c1806be60758cef10fa1173b74fe6c5c6ded Mon Sep 17 00:00:00 2001
 From: Timur Sultanov <SultanovTS@yandex.ru>
 Date: Sun, 6 Feb 2022 19:48:31 +0300
 Subject: [PATCH 02/24] Silence string truncation error
