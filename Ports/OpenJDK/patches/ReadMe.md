@@ -25,3 +25,13 @@ Ignore maybe-uninitialized warning
 Disable stack protector
 
 
+## `0006-Disable-set_signal_handler.patch`
+
+Disable set_signal_handler
+
+
+## `0007-Remove-redundant-print.patch`
+
+Remove redundant print
+
+
