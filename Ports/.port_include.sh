@@ -27,13 +27,15 @@ maybe_source() {
 }
 
 enable_ccache() {
-    if command -v ccache &>/dev/null; then
-        ccache_tooldir="${SERENITY_BUILD_DIR}/ccache"
-        mkdir -p "$ccache_tooldir"
-        for tool in gcc g++ c++; do
-            ln -sf "$(command -v ccache)" "${ccache_tooldir}/${SERENITY_ARCH}-pc-serenity-${tool}"
-        done
-        export PATH="${ccache_tooldir}:$PATH"
+    if [ "${USECCACHE:-true}" = "true" ]; then
+        if command -v ccache &>/dev/null; then
+            ccache_tooldir="${SERENITY_BUILD_DIR}/ccache"
+            mkdir -p "$ccache_tooldir"
+            for tool in gcc g++ c++; do
+                ln -sf "$(command -v ccache)" "${ccache_tooldir}/${SERENITY_ARCH}-pc-serenity-${tool}"
+            done
+            export PATH="${ccache_tooldir}:$PATH"
+        fi
     fi
 }
 
