@@ -17,7 +17,15 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+
+#ifndef __CYGWIN__
 #include <sys/ptrace.h>
+#endif
+
+#ifdef __CYGWIN__
+#include <errno.h>
+#endif
+
 #include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
@@ -893,6 +901,7 @@ ErrorOr<struct utsname> uname()
     return uts;
 }
 
+#ifndef __CYGWIN__
 ErrorOr<void> adjtime(const struct timeval* delta, struct timeval* old_delta)
 {
 #ifdef __serenity__
@@ -904,6 +913,12 @@ ErrorOr<void> adjtime(const struct timeval* delta, struct timeval* old_delta)
     return {};
 #endif
 }
+#else
+ErrorOr<void> adjtime(const struct timeval*, struct timeval*)
+{
+    return Error::from_errno(ENOSYS);
+}
+#endif
 
 ErrorOr<int> socket(int domain, int type, int protocol)
 {

@@ -23,6 +23,8 @@ static HashMap<String, String> const s_driver_path_map
     { "softgpu", "libsoftgpu.so" },
 #elif defined(__APPLE__)
     { "softgpu", "./liblagom-softgpu.dylib" },
+#elfi defined(__CYGWIN__)
+    { "softgpu", "./liblagom-softgpu.dll" },
 #else
     { "softgpu", "./liblagom-softgpu.so" },
 #endif

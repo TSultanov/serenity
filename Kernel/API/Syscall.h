@@ -20,7 +20,9 @@ struct sockaddr;
 struct siginfo;
 struct stat;
 struct statvfs;
+#ifndef __CYGWIN__
 typedef u32 socklen_t;
+#endif
 }
 
 namespace Kernel {

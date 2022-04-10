@@ -23,7 +23,7 @@
 #    define AK_OS_BSD_GENERIC
 #endif
 
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) || defined(__CYGWIN__)
 #    define AK_OS_BSD_GENERIC
 #endif
 

@@ -43,7 +43,9 @@ static void handle_sigabrt(int)
     Test::cleanup();
     struct sigaction act;
     memset(&act, 0, sizeof(act));
+#ifndef __CYGWIN__
     act.sa_flags = SA_NOCLDWAIT;
+#endif
     act.sa_handler = SIG_DFL;
     int rc = sigaction(SIGABRT, &act, nullptr);
     if (rc < 0) {
@@ -62,7 +64,9 @@ int main(int argc, char** argv)
 
     struct sigaction act;
     memset(&act, 0, sizeof(act));
+#ifndef __CYGWIN__
     act.sa_flags = SA_NOCLDWAIT;
+#endif
     act.sa_handler = handle_sigabrt;
     int rc = sigaction(SIGABRT, &act, nullptr);
     if (rc < 0) {

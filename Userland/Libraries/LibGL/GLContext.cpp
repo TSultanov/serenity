@@ -22,7 +22,11 @@
 #include <LibGfx/Painter.h>
 #include <LibGfx/Vector4.h>
 
+#if defined(__CYGWIN__)
+GL::GLContext* g_gl_context;
+#else
 __attribute__((visibility("hidden"))) GL::GLContext* g_gl_context;
+#endif
 
 namespace GL {
 

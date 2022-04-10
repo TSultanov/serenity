@@ -21,7 +21,7 @@
 #include <utime.h>
 
 // On Linux distros that use glibc `basename` is defined as a macro that expands to `__xpg_basename`, so we undefine it
-#if defined(__linux__) && defined(basename)
+#if (defined(__linux__) || defined(__CYGWIN__)) && defined(basename)
 #    undef basename
 #endif
 

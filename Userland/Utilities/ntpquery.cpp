@@ -4,8 +4,14 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#ifndef _BSD_SOURCE
 #define _BSD_SOURCE
+#endif
+
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
+
 #include <AK/Assertions.h>
 #include <AK/Endian.h>
 #include <AK/Random.h>

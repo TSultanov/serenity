@@ -77,6 +77,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_compile_definitions(_DEFAULT_SOURCE)
+add_compile_definitions(_GNU_SOURCE)
+add_compile_definitions(_XOPEN_SOURCE=700)
+
 include(GNUInstallDirs) # make sure to include before we mess w/RPATH
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
@@ -220,6 +224,50 @@ function(lagom_lib library fs_name)
     )
 endfunction()
 
+function(lagom_static_lib library fs_name)
+    cmake_parse_arguments(LAGOM_LIBRARY "" "" "SOURCES;LIBS" ${ARGN})
+    set(target_name "Lagom${library}")
+    add_library(${target_name} STATIC ${LAGOM_LIBRARY_SOURCES})
+
+    # Don't make alias when we're going to import a previous build for Tools
+    # FIXME: Is there a better way to write this?
+    if (NOT ENABLE_FUZZERS)
+        # alias for parity with exports
+        add_library(Lagom::${library} ALIAS ${target_name})
+    endif()
+
+    set_target_properties(
+        ${target_name} PROPERTIES
+        VERSION "${PROJECT_VERSION}"
+        SOVERSION "${PROJECT_VERSION_MAJOR}"
+        EXPORT_NAME ${library}
+        OUTPUT_NAME lagom-${fs_name}
+    )
+    target_link_libraries(${target_name} ${LAGOM_LIBRARY_LIBS})
+    if (NOT ${target_name} STREQUAL "LagomCore")
+        target_link_libraries(${target_name} LagomCore)
+    endif()
+    install(
+        TARGETS ${target_name}
+        EXPORT LagomTargets
+        RUNTIME #
+            COMPONENT Lagom_Runtime
+        LIBRARY #
+            COMPONENT Lagom_Runtime
+            NAMELINK_COMPONENT Lagom_Development
+        ARCHIVE #
+            COMPONENT Lagom_Development
+        INCLUDES #
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+    install(
+        DIRECTORY "${SERENITY_PROJECT_ROOT}/Userland/Libraries/Lib${library}"
+        COMPONENT Lagom_Development
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING PATTERN "*.h"
+    )
+endfunction()
+
 function(lagom_test source)
     cmake_parse_arguments(LAGOM_TEST "" "WORKING_DIRECTORY" "LIBS" ${ARGN})
     get_filename_component(name ${source} NAME_WE)
@@ -254,13 +302,17 @@ endif()
 
 # Main
 file(GLOB LIBMAIN_SOURCES CONFIGURE_DEPENDS "../../Userland/Libraries/LibMain/*.cpp")
-lagom_lib(Main main
+lagom_static_lib(Main main
     SOURCES ${LIBMAIN_SOURCES}
 )
 # The macOS linker is not happy about LibMain's main() calling an undefined symbol (serenity_main()).
 if (APPLE)
     target_link_options(LagomMain PRIVATE -undefined dynamic_lookup)
 endif()
+
+# if (CYGWIN)
+#     target_link_options(LagomMain PRIVATE -undefined serenity_main)
+# endif()
 
 # TimeZone
 # This is needed even if Lagom is not enabled because it is depended upon by code generators.
@@ -533,9 +585,11 @@ if (BUILD_LAGOM)
         set_target_properties(markdown-check_lagom PROPERTIES OUTPUT_NAME markdown-check)
         target_link_libraries(markdown-check_lagom LagomMarkdown LagomMain)
 
+if (NOT CYGWIN)
         add_executable(ntpquery_lagom ../../Userland/Utilities/ntpquery.cpp)
         set_target_properties(ntpquery_lagom PROPERTIES OUTPUT_NAME ntpquery)
         target_link_libraries(ntpquery_lagom LagomCore)
+endif()
 
         add_executable(shell_lagom ../../Userland/Shell/main.cpp)
         set_target_properties(shell_lagom PROPERTIES OUTPUT_NAME shell)

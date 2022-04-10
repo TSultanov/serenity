@@ -444,7 +444,7 @@ template<typename T, typename V>
 struct VaArgNextArgument {
     ALWAYS_INLINE T operator()(V ap) const
     {
-        return va_arg(ap, T);
+        return va_arg((va_list&)ap, T);
     }
 };
 

@@ -328,7 +328,26 @@ struct __MakeSigned<char> {
 template<typename T>
 using MakeSigned = typename __MakeSigned<T>::Type;
 
+template<typename T, typename = void>
+struct __AddReference {
+    using LvalueType = T;
+    using TvalueType = T;
+};
+
 template<typename T>
+struct __AddReference<T, VoidType<T&>> {
+    using LvalueType = T&;
+    using RvalueType = T&&;
+};
+
+template<typename T>
+using AddLvalueReference = typename __AddReference<T>::LvalueType;
+
+template<typename T>
+using AddRvalueReference = typename __AddReference<T>::RvalueType;
+
+template<typename T>
+// auto declval() -> AddRvalueReference<T>;
 auto declval() -> T;
 
 template<typename...>
@@ -462,24 +481,6 @@ struct __IdentityType {
 
 template<typename T>
 using IdentityType = typename __IdentityType<T>::Type;
-
-template<typename T, typename = void>
-struct __AddReference {
-    using LvalueType = T;
-    using TvalueType = T;
-};
-
-template<typename T>
-struct __AddReference<T, VoidType<T&>> {
-    using LvalueType = T&;
-    using RvalueType = T&&;
-};
-
-template<typename T>
-using AddLvalueReference = typename __AddReference<T>::LvalueType;
-
-template<typename T>
-using AddRvalueReference = typename __AddReference<T>::RvalueType;
 
 template<class T>
 requires(IsEnum<T>) using UnderlyingType = __underlying_type(T);
