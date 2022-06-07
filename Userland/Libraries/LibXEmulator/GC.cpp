@@ -91,6 +91,14 @@ XChangeGC(Display *display, GC gc, unsigned long mask, XGCValues *values)
 }
 
 extern "C" int
+XSetForeground(Display */*display*/, GC gc, unsigned long color)
+{
+    gc->values.foreground = color;
+    gc->dirty = True;
+    return 0;
+}
+
+extern "C" int
 XSetFont(XLib::Display */*display*/, XLib::GC gc, XLib::Font font)
 {
     gc->values.font = font;
