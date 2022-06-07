@@ -3,7 +3,8 @@ set(SOURCES
         Color.cpp
         ObjectManager.cpp
         Window.cpp
-        XWindow.cpp)
+        XWindow.cpp
+        GC.cpp)
 
 serenity_lib(LibX11 X11)
 target_link_libraries(LibGUI LibGfx)
