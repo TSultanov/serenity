@@ -3,6 +3,8 @@
 #include "XWindow.h"
 #include "Event.h"
 
+#include <sys/ioctl.h>
+
 namespace XLib {
 
 extern "C" {
@@ -213,5 +215,22 @@ XSelectInput(Display* /*display*/, Window w, long mask)
     if (window.is_null())
         return BadWindow;
     window->event_mask(mask);
+    return Success;
+}
+
+extern "C" int
+XFlush(Display* dpy)
+{
+    // We only have the "input buffer" to flush.
+    size_t nbytes;
+    ioctl(dpy->fd, FIONREAD, &nbytes);
+
+    while (nbytes) {
+        char dummy[16];
+        int rd = read(dpy->fd, dummy, min(nbytes, sizeof(dummy)));
+        if (rd > 0)
+            nbytes -= rd;
+    }
+
     return Success;
 }
