@@ -21,6 +21,9 @@ public:
         return this->m_window;
     }
 
+    long event_mask() { return m_event_mask; }
+    void event_mask(long mask);
+
 //    AK::NonnullRefPtr<GUI::Widget> widget() {
 //        return this->m_widget;
 //    }
@@ -31,6 +34,8 @@ private:
 
     XLib::Window m_id;
     XLib::Display * m_display;
+
+    long m_event_mask;
 
     AK::RefPtr<GUI::Window> m_window;
 //    AK::NonnullRefPtr<GUI::Widget> m_widget;

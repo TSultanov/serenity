@@ -12,3 +12,9 @@ void XWindow::create_host_window() {
     m_window = GUI::Window::construct();
     m_window->set_main_widget(this);
 }
+
+void
+XWindow::event_mask(long mask)
+{
+    m_event_mask = mask;
+}
