@@ -4,7 +4,8 @@ set(SOURCES
         ObjectManager.cpp
         Window.cpp
         XWindow.cpp
-        GC.cpp)
+        GC.cpp
+        Font.cpp)
 
 serenity_lib(LibX11 X11)
 target_link_libraries(LibGUI LibGfx)

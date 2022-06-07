@@ -89,3 +89,11 @@ XChangeGC(Display *display, GC gc, unsigned long mask, XGCValues *values)
     gc->dirty = True;
     return 0;
 }
+
+extern "C" int
+XSetFont(XLib::Display */*display*/, XLib::GC gc, XLib::Font font)
+{
+    gc->values.font = font;
+    gc->dirty = True;
+    return 0;
+}
