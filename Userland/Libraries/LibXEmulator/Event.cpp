@@ -219,6 +219,14 @@ XSelectInput(Display* /*display*/, Window w, long mask)
 }
 
 extern "C" int
+XNextEvent(Display* display, XEvent* event)
+{
+    XFlush(display);
+    Events::instance_for(display).wait_for_next(event);
+    return Success;
+}
+
+extern "C" int
 XFlush(Display* dpy)
 {
     // We only have the "input buffer" to flush.
