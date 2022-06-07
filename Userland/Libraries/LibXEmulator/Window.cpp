@@ -1,6 +1,7 @@
 #include "ObjectManager.h"
 #include "Drawing.h"
 #include "XWindow.h"
+#include "Event.h"
 
 namespace XLib {
 extern "C" {
@@ -71,6 +72,32 @@ XLib::XChangeWindowAttributes(XLib::Display */*display*/, XLib::Window w,
         return BadWindow;
 
     //TODO: implement the attributes
+
+    return Success;
+}
+
+extern "C" int
+XLib::XMapWindow(XLib::Display* display, XLib::Window w)
+{
+    auto window = ObjectManager::the().get_window(w);
+    if (window.is_null())
+        return BadWindow;
+
+    if (!window->window().is_null()) {
+        window->window()->show();
+    } else {
+        window->set_visible(true);
+    }
+
+    auto parent = window->parent_window();
+	const bool selfNotify = (window->event_mask() & StructureNotifyMask);
+    if (selfNotify || (parent && parent->event_mask() & SubstructureNotifyMask)) {
+        XEvent event = {};
+        event.type = MapNotify;
+        event.xmap.event = selfNotify ? window->id() : parent->id();
+        event.xmap.window = window->id();
+        _x_put_event(display, event);
+    }
 
     return Success;
 }

@@ -13,8 +13,12 @@ void XWindow::create_host_window() {
     m_window->set_main_widget(this);
 }
 
-void
-XWindow::event_mask(long mask)
+void XWindow::event_mask(long mask)
 {
     m_event_mask = mask;
+}
+
+XWindow* XWindow::parent_window()
+{
+    return dynamic_cast<XWindow*>(this->parent());
 }
