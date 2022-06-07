@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Undef.h"
 #include <AK/HashMap.h>
 #include <LibCore/Object.h>

@@ -6,7 +6,6 @@
 #include <sys/ioctl.h>
 
 namespace XLib {
-
 extern "C" {
 #include <X11/Xlib.h>
 #include <X11/Xlibint.h>

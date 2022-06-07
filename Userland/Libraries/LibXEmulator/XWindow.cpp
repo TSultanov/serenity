@@ -3,7 +3,7 @@
 
 XWindow::XWindow(XLib::Display* display, Gfx::IntRect frame) :
     m_id(ObjectManager::the().add_window(this)),
-    m_display(display)
+    m_display(display), m_painter(*this)
 {
     set_relative_rect(frame);
 }
@@ -21,4 +21,9 @@ void XWindow::event_mask(long mask)
 XWindow* XWindow::parent_window()
 {
     return dynamic_cast<XWindow*>(this->parent());
+}
+
+void XWindow::paint_event(GUI::PaintEvent&)
+{
+    GUI::Painter painter_1(*this);
 }
