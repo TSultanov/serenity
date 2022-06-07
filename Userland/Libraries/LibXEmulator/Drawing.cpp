@@ -37,3 +37,21 @@ XFillRectangles(Display */*display*/, Drawable w, GC /*gc*/,
     }
     return 0;
 }
+
+extern "C" void
+Xutf8DrawString(Display */*display*/, Drawable w, XFontSet /*set*/, GC /*gc*/, int x, int y, const char* str, int /*len*/)
+{
+    // FIXME: Use provided fonts!
+    auto window = ObjectManager::the().get_window(w); // FIXME: Consider implementing XWindow as a subclass of XDrawable
+    auto& painter = window->painter();
+    //bex_check_gc(window, gc);
+    Gfx::IntRect rect(x, y, window->width()-x, window->height()-y);
+    painter.draw_text(rect, str, Gfx::TextAlignment::TopLeft, Color::from_rgb(0xffffff), Gfx::TextElision::None, Gfx::TextWrapping::DontWrap);
+}
+
+extern "C" int
+XDrawString(Display* display, Drawable w, GC gc, int x, int y, const char* str, int len)
+{
+    Xutf8DrawString(display, w, NULL, gc, x, y, str, len);
+    return 0;
+}
