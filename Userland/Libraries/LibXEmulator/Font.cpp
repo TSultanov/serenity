@@ -1,6 +1,7 @@
 #include <AK/HashMap.h>
 #include <AK/String.h>
 #include <LibGfx/Font/Font.h>
+#include <LibGfx/Font/FontDatabase.h>
 
 #include <cctype>
 
@@ -10,6 +11,13 @@ extern "C" {
 #include <X11/Xatom.h>
 }
 }
+
+static struct FontDatabaseInitializer {
+    FontDatabaseInitializer()
+    {
+        Gfx::FontDatabase::the().set_default_font_query("Katica 10 400 0"sv);
+    }
+} g_init;
 
 struct XLFD {
     String foundry = "*";
@@ -28,7 +36,7 @@ struct XLFD {
 
 struct FontEntry {
     XLFD xlfd;
-    //String style;
+    String variant;
 };
 static AK::HashMap<uint16_t, FontEntry*> sFonts;
 //static uint16_t sLastFontID = 1;
@@ -175,6 +183,65 @@ compare_xlfds(const XLFD& compare, const XLFD& base, uint16_t baseID)
 }
 
 using namespace XLib;
+
+static void
+extract_Font(Font font, uint16_t& id, uint16_t& pointSize)
+{
+    id = (font & UINT16_MAX);
+    pointSize = (font >> 16) & UINT16_MAX;
+}
+
+static FontEntry*
+lookup_font(int id)
+{
+    const auto& it = sFonts.get(id);
+    if(it.has_value())
+        return it.value();
+
+    return nullptr;
+}
+
+AK::RefPtr<Gfx::Font>
+gfxfont_from_font(Font fid)
+{
+    uint16_t id, pointSize;
+    extract_Font(fid, id, pointSize);
+
+    FontEntry* fontId = lookup_font(id);
+    if (!fontId)
+        return Gfx::FontDatabase::the().default_font();
+
+    auto font = Gfx::FontDatabase::the().get(fontId->xlfd.family, fontId->variant, pointSize);
+    if(font.is_null())
+        return Gfx::FontDatabase::the().default_font();
+    return font;
+}
+
+extern "C" XFontStruct*
+XQueryFont(Display */*display*/, Font id)
+{
+    FontEntry* ident = lookup_font(id);
+    if (!ident)
+        return NULL;
+
+    auto bfont = gfxfont_from_font(id);
+
+    XFontStruct* font = (XFontStruct*)calloc(1, sizeof(XFontStruct));
+    font->fid = id;
+    font->direction = FontLeftToRight; // FIXME
+    font->min_char_or_byte2 = 0;
+    font->max_char_or_byte2 = 0xFF;
+    font->min_byte1 = 0;
+    font->max_byte1 = 0;
+
+    font->ascent = font->max_bounds.ascent = bfont->pixel_metrics().ascent;
+    font->descent = font->max_bounds.descent = bfont->pixel_metrics().descent;
+
+    font->min_bounds.width = bfont->width(".");
+    font->max_bounds.width = bfont->width("@");
+
+    return font;
+}
 
 extern "C" XFontStruct*
 XLoadQueryFont(Display *display, const char *name)
