@@ -7,8 +7,9 @@ set(SOURCES
         GC.cpp
         Font.cpp
         Event.cpp
-        Drawing.cpp)
+        Drawing.cpp
+        XPixmap.cpp)
 
 serenity_lib(LibX11 X11)
-target_link_libraries(LibGUI LibGfx)
+target_link_libraries(LibGUI LibGfx LibCore)
 serenity_install_headers(.)

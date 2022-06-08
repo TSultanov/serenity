@@ -1,2 +1,9 @@
-add_executable(xhello xhello.c)
-target_link_libraries(xhello LibX11)
+serenity_component(
+        XTest
+        TARGETS XTest
+)
+
+set(SOURCES xhello.c)
+
+serenity_app(XTest ICON filetype-executable)
+target_link_libraries(XTest LibX11 LibCore LibGUI LibGfx)

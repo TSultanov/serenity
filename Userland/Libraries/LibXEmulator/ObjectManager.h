@@ -4,6 +4,7 @@
 #include <AK/HashMap.h>
 #include <LibCore/Object.h>
 #include "XWindow.h"
+#include "XPixmap.h"
 
 namespace XLib {
 extern "C" {
@@ -19,6 +20,10 @@ public:
     AK::RefPtr<XWindow> get_window(XLib::Window xlib_window) const;
     XLib::Window add_window(AK::RefPtr<XWindow> window);
     void remove_window(XLib::Window xlib_window);
+
+    AK::RefPtr<XPixmap> get_pixmap(XLib::Pixmap xlib_pixmap) const;
+    XLib::Pixmap add_pixmap(AK::RefPtr<XPixmap> pixmap);
+    void remove_pixmap(XLib::Pixmap xlib_pixmap);
 private:
     XLib::XID next_xid() {
         static XLib::XID xid{0};
@@ -26,4 +31,5 @@ private:
     }
 
     AK::HashMap<XLib::XID, AK::RefPtr<XWindow>> m_windows;
+    AK::HashMap<XLib::XID, AK::RefPtr<XPixmap>> m_pixmaps;
 };

@@ -1,3 +1,7 @@
+#include "ObjectManager.h"
+#include <LibGfx/Rect.h>
+#include <LibGfx/DisjointRectSet.h>
+
 namespace XLib {
 extern "C" {
 #include <X11/Xlib.h>
@@ -5,6 +9,10 @@ extern "C" {
 #include <X11/Xutil.h>
 }
 }
+
+struct ClipMask {
+    Gfx::DisjointRectSet region;
+};
 
 using namespace XLib;
 
@@ -104,4 +112,33 @@ XSetFont(XLib::Display */*display*/, XLib::GC gc, XLib::Font font)
     gc->values.font = font;
     gc->dirty = True;
     return 0;
+}
+
+static inline ClipMask*
+gc_clip_mask(GC gc, bool allocate = true)
+{
+    ClipMask* mask = (ClipMask*)gc->values.clip_mask;
+    if (!mask && allocate) {
+        mask = new ClipMask;
+        gc->values.clip_mask = (Pixmap)mask;
+    }
+    return mask;
+}
+
+extern "C" Status
+XSetClipMask(Display* /*display*/, GC gc, Pixmap pixmap)
+{
+    auto pxm = ObjectManager::the().get_pixmap(pixmap);
+    if (pxm.is_null())
+        return BadPixmap;
+
+    ClipMask* mask = gc_clip_mask(gc);
+    mask->region.clear();
+    mask->region.add(pxm->bitmap()->rect());
+
+    // TODO: Actually use the pixmap for clipping!
+    dbgln("XSetClipMask unimplmeted");
+
+    gc->dirty = True;
+    return Success;
 }
