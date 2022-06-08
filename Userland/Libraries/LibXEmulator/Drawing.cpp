@@ -11,10 +11,8 @@ extern "C" {
 }
 }
 
-using namespace XLib;
-
 extern "C" int
-XFillRectangle(Display *display, Drawable win, GC gc,
+XLib::XFillRectangle(Display *display, Drawable win, GC gc,
     int x, int y, unsigned int w, unsigned int h)
 {
     XRectangle rect;
@@ -26,7 +24,7 @@ XFillRectangle(Display *display, Drawable win, GC gc,
 }
 
 extern "C" int
-XFillRectangles(Display */*display*/, Drawable w, GC /*gc*/,
+XLib::XFillRectangles(Display */*display*/, Drawable w, GC /*gc*/,
     XRectangle *rect, int n)
 {
     auto window = ObjectManager::the().get_window(w); // FIXME: Consider implementing XWindow as a subclass of XDrawable
@@ -39,7 +37,7 @@ XFillRectangles(Display */*display*/, Drawable w, GC /*gc*/,
 }
 
 extern "C" void
-Xutf8DrawString(Display */*display*/, Drawable w, XFontSet /*set*/, GC /*gc*/, int x, int y, const char* str, int /*len*/)
+XLib::Xutf8DrawString(Display */*display*/, Drawable w, XFontSet /*set*/, GC /*gc*/, int x, int y, const char* str, int /*len*/)
 {
     // FIXME: Use provided fonts!
     auto window = ObjectManager::the().get_window(w); // FIXME: Consider implementing XWindow as a subclass of XDrawable
@@ -50,7 +48,7 @@ Xutf8DrawString(Display */*display*/, Drawable w, XFontSet /*set*/, GC /*gc*/, i
 }
 
 extern "C" int
-XDrawString(Display* display, Drawable w, GC gc, int x, int y, const char* str, int len)
+XLib::XDrawString(Display* display, Drawable w, GC gc, int x, int y, const char* str, int len)
 {
     Xutf8DrawString(display, w, NULL, gc, x, y, str, len);
     return 0;

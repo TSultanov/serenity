@@ -14,10 +14,8 @@ struct ClipMask {
     Gfx::DisjointRectSet region;
 };
 
-using namespace XLib;
-
-extern "C" GC
-XCreateGC(Display* display, Window /*window*/,
+extern "C" XLib::GC
+XLib::XCreateGC(XLib::Display* display, XLib::Window /*window*/,
     unsigned long mask, XGCValues* gc_values)
 {
     XLib::GC gc = new XLib::_XGC;
@@ -41,7 +39,7 @@ XCreateGC(Display* display, Window /*window*/,
 }
 
 extern "C" int
-XChangeGC(Display *display, GC gc, unsigned long mask, XGCValues *values)
+XLib::XChangeGC(XLib::Display *display, XLib::GC gc, unsigned long mask, XGCValues *values)
 {
     if (mask & GCFunction)
         gc->values.function = values->function;
@@ -99,7 +97,7 @@ XChangeGC(Display *display, GC gc, unsigned long mask, XGCValues *values)
 }
 
 extern "C" int
-XSetForeground(Display */*display*/, GC gc, unsigned long color)
+XLib::XSetForeground(Display */*display*/, GC gc, unsigned long color)
 {
     gc->values.foreground = color;
     gc->dirty = True;
@@ -107,7 +105,7 @@ XSetForeground(Display */*display*/, GC gc, unsigned long color)
 }
 
 extern "C" int
-XSetFont(XLib::Display */*display*/, XLib::GC gc, XLib::Font font)
+XLib::XSetFont(XLib::Display */*display*/, XLib::GC gc, XLib::Font font)
 {
     gc->values.font = font;
     gc->dirty = True;
@@ -115,18 +113,18 @@ XSetFont(XLib::Display */*display*/, XLib::GC gc, XLib::Font font)
 }
 
 static inline ClipMask*
-gc_clip_mask(GC gc, bool allocate = true)
+gc_clip_mask(XLib::GC gc, bool allocate = true)
 {
     ClipMask* mask = (ClipMask*)gc->values.clip_mask;
     if (!mask && allocate) {
         mask = new ClipMask;
-        gc->values.clip_mask = (Pixmap)mask;
+        gc->values.clip_mask = (XLib::Pixmap)mask;
     }
     return mask;
 }
 
 extern "C" Status
-XSetClipMask(Display* /*display*/, GC gc, Pixmap pixmap)
+XLib::XSetClipMask(Display* /*display*/, GC gc, Pixmap pixmap)
 {
     auto pxm = ObjectManager::the().get_pixmap(pixmap);
     if (pxm.is_null())

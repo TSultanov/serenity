@@ -6,6 +6,8 @@
 
 #include "Color.h"
 #include "Lock.h"
+#undef max
+#include "Font.h"
 
 #include <unistd.h>
 
@@ -119,7 +121,7 @@ XLib::XOpenDisplay(const char*)
 
     set_display(display);
 //    _x_init_atoms();
-//    _x_init_font();
+    _x_init_font();
 //    _x_init_events(display);
     sOpenDisplays++;
     return display;

@@ -3,7 +3,9 @@
 #include <LibGfx/Font/Font.h>
 #include <LibGfx/Font/FontDatabase.h>
 
-#include <cctype>
+#include "Font.h"
+
+#include <ctype.h>
 
 namespace XLib {
 extern "C" {
@@ -12,12 +14,12 @@ extern "C" {
 }
 }
 
-static struct FontDatabaseInitializer {
-    FontDatabaseInitializer()
-    {
-        Gfx::FontDatabase::the().set_default_font_query("Katica 10 400 0"sv);
-    }
-} g_init;
+//static struct FontDatabaseInitializer {
+//    FontDatabaseInitializer()
+//    {
+//        Gfx::FontDatabase::the().set_default_font_query("Katica 10 400 0"sv);
+//    }
+//} g_init;
 
 struct XLFD {
     String foundry = "*";
@@ -39,7 +41,7 @@ struct FontEntry {
     String variant;
 };
 static AK::HashMap<uint16_t, FontEntry*> sFonts;
-//static uint16_t sLastFontID = 1;
+static uint16_t sLastFontID = 1;
 
 enum {
     DEFAULT_PLAIN_FONT = 0,
@@ -55,39 +57,39 @@ make_Font(uint16_t id, uint16_t pointSize)
     return (id & UINT16_MAX) | ((pointSize & UINT16_MAX) << 16);
 }
 
-//static char
-//get_slant(String variant)
-//{
-//    if (!variant.equals_ignoring_case("Italic"))
-//        return 'r';
-//    return 'i';
-//}
-//
-//static const char*
-//get_weight(String variant)
-//{
-//    static const char* medium = "medium";
-//    static const char* bold = "bold";
-//    if (variant.equals_ignoring_case("bold"))
-//        return bold;
-//    return medium;
-//}
+static char
+get_slant(String variant)
+{
+    if (!variant.equals_ignoring_case("Italic"))
+        return 'r';
+    return 'i';
+}
 
-//static XLFD
-//create_xlfd(String family, String variant)
-//{
-//    XLFD xlfd;
-//    xlfd.foundry = "TTFont";
-//    xlfd.family = family;
-//    xlfd.weight = get_weight(variant);
-//    xlfd.slant = get_slant(variant);
-//    xlfd.setwidth = "normal";
-//    xlfd.add_style = "";
-//    xlfd.spacing = 'p'; // FIXME
-//
-//    xlfd.charset = "iso10646-8";
-//    return xlfd;
-//}
+static const char*
+get_weight(String variant)
+{
+    static const char* medium = "medium";
+    static const char* bold = "bold";
+    if (variant.equals_ignoring_case("bold"))
+        return bold;
+    return medium;
+}
+
+static XLFD
+create_xlfd(String family, String variant)
+{
+    XLFD xlfd;
+    xlfd.foundry = "TTFont";
+    xlfd.family = family;
+    xlfd.weight = get_weight(variant);
+    xlfd.slant = get_slant(variant);
+    xlfd.setwidth = "normal";
+    xlfd.add_style = "";
+    xlfd.spacing = 'p'; // FIXME
+
+    xlfd.charset = "iso10646-8";
+    return xlfd;
+}
 
 static XLFD
 parse_xlfd(const char* string)
@@ -182,10 +184,40 @@ compare_xlfds(const XLFD& compare, const XLFD& base, uint16_t baseID)
     return true;
 }
 
-using namespace XLib;
+void
+_x_init_font()
+{
+    if (sFonts.size() != 0)
+        return;
+
+
+    Gfx::FontDatabase::the().set_default_font_query("Katica 10 400 0"sv);
+    Gfx::FontDatabase::the().set_fixed_width_font_query("Csilla 10 400 0"sv);
+
+    auto& default_plain_font = Gfx::FontDatabase::the().default_font();
+    auto& default_fixed_Font =Gfx::FontDatabase::the().default_fixed_width_font();
+
+    {
+        FontEntry* font = new FontEntry;
+        font->variant = default_plain_font.variant();
+        font->xlfd = create_xlfd(default_plain_font.family(), default_plain_font.variant());
+        sFonts.set(sLastFontID, font);
+        sDefaultFonts[DEFAULT_PLAIN_FONT] = sLastFontID;
+        sLastFontID++;
+    }
+
+    {
+        FontEntry* font = new FontEntry;
+        font->variant = default_fixed_Font.variant();
+        font->xlfd = create_xlfd(default_fixed_Font.family(), default_fixed_Font.variant());
+        sFonts.set(sLastFontID, font);
+        sDefaultFonts[DEFAULT_FIXED_FONT] = sLastFontID;
+        sLastFontID++;
+    }
+}
 
 static void
-extract_Font(Font font, uint16_t& id, uint16_t& pointSize)
+extract_Font(XLib::Font font, uint16_t& id, uint16_t& pointSize)
 {
     id = (font & UINT16_MAX);
     pointSize = (font >> 16) & UINT16_MAX;
@@ -201,8 +233,7 @@ lookup_font(int id)
     return nullptr;
 }
 
-AK::RefPtr<Gfx::Font>
-gfxfont_from_font(Font fid)
+AK::RefPtr<Gfx::Font> gfxfont_from_font(XLib::Font fid)
 {
     uint16_t id, pointSize;
     extract_Font(fid, id, pointSize);
@@ -217,8 +248,8 @@ gfxfont_from_font(Font fid)
     return font;
 }
 
-extern "C" XFontStruct*
-XQueryFont(Display */*display*/, Font id)
+extern "C" XLib::XFontStruct*
+XLib::XQueryFont(Display */*display*/, Font id)
 {
     FontEntry* ident = lookup_font(id);
     if (!ident)
@@ -243,14 +274,14 @@ XQueryFont(Display */*display*/, Font id)
     return font;
 }
 
-extern "C" XFontStruct*
-XLoadQueryFont(Display *display, const char *name)
+extern "C" XLib::XFontStruct*
+XLib::XLoadQueryFont(Display *display, const char *name)
 {
     return XQueryFont(display, XLoadFont(display, name));
 }
 
-extern "C" Font
-XLoadFont(Display* /*dpy*/, const char* name)
+extern "C" XLib::Font
+XLib::XLoadFont(Display* /*dpy*/, const char* name)
 {
     XLFD patternXLFD = parse_xlfd(name);
 
