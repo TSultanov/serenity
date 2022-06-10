@@ -1,4 +1,6 @@
+#include <AK/Queue.h>
 #include <LibThreading/Mutex.h>
+#include <LibGUI/Application.h>
 #include "ObjectManager.h"
 #include "XWindow.h"
 #include "Event.h"
@@ -15,6 +17,8 @@ extern "C" {
 extern "C" {
 #include <unistd.h>
 }
+
+static AK::Queue<XLib::XEvent> s_event_queue;
 
 namespace {
 class Events {
@@ -140,14 +144,20 @@ void Events::add(XLib::XEvent event, bool front)
 
 void Events::wait_for_more()
 {
+    dbgln("wait_for_more start");
     char dummy[1];
     read(_display->fd, dummy, 1);
+    dbgln("wait_for_more end");
 }
 
 void Events::wait_for_next(XLib::XEvent* event_return, bool dequeue)
 {
-    if (!_display->qlen)
-        wait_for_more();
+    // TODO: avoid spinning;
+    while(list_.is_empty()) {
+        GUI::Application::the()->event_loop().pump();
+    }
+//    if (!_display->qlen)
+//        wait_for_more();
 
     Threading::MutexLocker evl(lock_);
     evl.lock();
@@ -185,9 +195,9 @@ void Events::wait_for_next(XLib::XEvent* event_return, bool dequeue)
 //}
 }
 
-void _x_init_events(XLib::Display* dpy)
+void _x_init_events(XLib::Display* /*dpy*/)
 {
-    Events::init_for(dpy);
+//    Events::init_for(dpy);
 }
 
 void _x_finalize_events(XLib::Display* dpy)
@@ -195,9 +205,9 @@ void _x_finalize_events(XLib::Display* dpy)
     delete (Events*)dpy->trans_conn;
 }
 
-void _x_put_event(XLib::Display* display, const XLib::XEvent& event)
+void _x_put_event(XLib::Display* /*display*/, const XLib::XEvent& event)
 {
-    Events::instance_for(display).add(event);
+    s_event_queue.enqueue(event);
 }
 
 extern "C" int
@@ -213,24 +223,32 @@ XLib::XSelectInput(XLib::Display* /*display*/, XLib::Window w, long mask)
 extern "C" int
 XLib::XNextEvent(Display* display, XEvent* event)
 {
+    dbgln("XNextEvent");
     XFlush(display);
-    Events::instance_for(display).wait_for_next(event);
+    while(s_event_queue.is_empty()) {
+        dbgln("Pump");
+        GUI::Application::the()->event_loop().pump(Core::EventLoop::WaitMode::WaitForEvents);
+    }
+    *event = s_event_queue.dequeue();
+    dbgln("Event: {}", event->type);
     return Success;
 }
 
 extern "C" int
-XLib::XFlush(Display* dpy)
+XLib::XFlush(Display* /*dpy*/)
 {
     // We only have the "input buffer" to flush.
-    size_t nbytes;
-    ioctl(dpy->fd, FIONREAD, &nbytes);
-
-    while (nbytes) {
-        char dummy[16];
-        int rd = read(dpy->fd, dummy, min(nbytes, sizeof(dummy)));
-        if (rd > 0)
-            nbytes -= rd;
-    }
-
+//    size_t nbytes;
+//    dbgln("XFlush: before ioctl");
+//    ioctl(dpy->fd, FIONREAD, &nbytes);
+//    dbgln("XFlush: nbytes = {}", nbytes);
+//    while (nbytes) {
+//        char dummy[16];
+//        auto rd = read(dpy->fd, dummy, min(nbytes, sizeof(dummy)));
+//        dbgln("XFlush: flushed {} bytes", rd);
+//        if (rd > 0)
+//            nbytes -= rd;
+//    }
+//    dbgln("XFlush: Flushed");
     return Success;
 }

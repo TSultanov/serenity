@@ -3,11 +3,14 @@
 
 #include <LibGUI/Desktop.h>
 #include <LibGfx/Color.h>
+#include <LibGfx/Palette.h>
+#include <LibGUI/Application.h>
 
 #include "Color.h"
 #include "Lock.h"
 #undef max
 #include "Font.h"
+#include "Event.h"
 
 #include <unistd.h>
 
@@ -20,6 +23,7 @@ extern "C" {
 
 static bool sThreads = false;
 static AK::Atomic<int32_t> sOpenDisplays = 0;
+static RefPtr<GUI::Application> s_app;
 
 static void
 x_lock_display(XLib::Display* dpy)
@@ -106,8 +110,8 @@ set_display(XLib::Display* dpy)
 extern "C" XLib::Display*
 XLib::XOpenDisplay(const char*)
 {
-//    if (sOpenDisplays != 0)
-//        dbgln("libX11: warning: application opened more than one X display!");
+    if (sOpenDisplays != 0)
+        dbgln("LibX11: warning: application opened more than one X display!");
 
     XLib::Display* display = new XLib::_XDisplay;
     memset(display, 0, sizeof(XLib::Display));
@@ -117,12 +121,12 @@ XLib::XOpenDisplay(const char*)
     display->fd = eventsPipe[0];
     display->conn_checker = eventsPipe[1];
 
-    // TODO: we need event loop
+    s_app = MUST(GUI::Application::try_create(0, nullptr, Core::EventLoop::MakeInspectable::Yes));
 
     set_display(display);
 //    _x_init_atoms();
     _x_init_font();
-//    _x_init_events(display);
+    _x_init_events(display);
     sOpenDisplays++;
     return display;
 }

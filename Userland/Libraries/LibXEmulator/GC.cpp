@@ -1,3 +1,5 @@
+#undef None
+#include <LibGUI/Application.h>
 #include "ObjectManager.h"
 #include <LibGfx/Rect.h>
 #include <LibGfx/DisjointRectSet.h>

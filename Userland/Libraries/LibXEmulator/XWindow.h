@@ -18,14 +18,8 @@ public:
         return m_id;
     }
 
-    AK::RefPtr<GUI::Window> window() {
-        return this->m_window;
-    }
-
-    long event_mask() { return m_event_mask; }
+    long event_mask() const { return m_event_mask; }
     void event_mask(long mask);
-
-    void create_host_window();
 
     XWindow* parent_window();
 
@@ -35,14 +29,15 @@ protected:
     void paint_event(GUI::PaintEvent&) override;
 
 private:
-    XWindow(XLib::Display* display, Gfx::IntRect frame);
+    XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::IntRect frame);
 
     XLib::Window m_id;
     XLib::Display * m_display;
 
     long m_event_mask;
 
-    GUI::Painter m_painter;
-
     AK::RefPtr<GUI::Window> m_window;
+
+    AK::NonnullRefPtr<Gfx::Bitmap> m_bitmap;
+    GUI::Painter m_painter;
 };

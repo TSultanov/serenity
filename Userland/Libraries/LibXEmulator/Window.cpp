@@ -2,6 +2,9 @@
 #include "Drawing.h"
 #include "XWindow.h"
 #include "Event.h"
+#undef None
+#include <LibGUI/Application.h>
+#include <LibGfx/Palette.h>
 
 namespace XLib {
 extern "C" {
@@ -32,35 +35,47 @@ XLib::XCreateWindow(XLib::Display* display, XLib::Window parent, int x, int y, u
     if (_attributes)
         attributes = *_attributes;
 
-    Gfx::IntRect frame(intrect_from_xrect(make_xrect(x, y, w, h)));
+//    auto app = GUI::Application::the();
 
-    auto window = XWindow::construct(display, frame);
+    Gfx::IntRect frame(intrect_from_xrect(make_xrect(x, y, w, h)));
 
     auto parent_window = ObjectManager::the().get_window(parent);
 
-    if (parent_window.is_null()) {
-        window->create_host_window();
-        window->window()->move_to(x, y);
-    } else {
-        //window->view()->Hide();
-        parent_window->add_child(window);
+    RefPtr<XWindow> xwindow;
 
-//        if (parent_window->event_mask() & SubstructureNotifyMask) { // TODO: what event should we pass?
-//            XEvent event = {};
-//            event.type = CreateNotify;
-//            event.xcreatewindow.parent = parent;
-//            event.xcreatewindow.window = window->id();
-//            event.xcreatewindow.x = x;
-//            event.xcreatewindow.y = y;
-//            event.xcreatewindow.width = w;
-//            event.xcreatewindow.height = h;
-//            event.xcreatewindow.border_width = border_width;
-//            _x_put_event(display, event);
-//        }
+    if(parent_window.is_null())
+    {
+        auto host_window = MUST(GUI::Window::try_create());
+        xwindow = MUST(XWindow::try_create(display, host_window, frame));
+        host_window->set_main_widget(xwindow);
+        host_window->resize(w, h);
+    }
+    else
+    {
+        xwindow = MUST(XWindow::try_create(display, parent_window->window(), frame));
+        xwindow->resize(w, h);
+        parent_window->add_child(*xwindow);
+    }
+
+    {
+        //window->view()->Hide();
+
+        if (!parent_window.is_null() && (parent_window->event_mask() & SubstructureNotifyMask)) { // TODO: what event should we pass?
+            XEvent event = {};
+            event.type = CreateNotify;
+            event.xcreatewindow.parent = parent;
+            event.xcreatewindow.window = xwindow->id();
+            event.xcreatewindow.x = x;
+            event.xcreatewindow.y = y;
+            event.xcreatewindow.width = w;
+            event.xcreatewindow.height = h;
+            //event.xcreatewindow.border_width = border_width;
+            _x_put_event(display, event);
+        }
     }
 
     //XChangeWindowAttributes(display, window->id(), valueMask, &attributes);
-    return window->id();
+    return xwindow->id();
 }
 
 extern "C" Status
@@ -83,14 +98,16 @@ XLib::XMapWindow(XLib::Display* display, XLib::Window w)
     if (window.is_null())
         return BadWindow;
 
-    if (!window->window().is_null()) {
+    if (window->window()) {
+        dbgln("Has parent window");
         window->window()->show();
     } else {
+        dbgln("Doesn't have parent window");
         window->set_visible(true);
     }
 
     auto parent = window->parent_window();
-	const bool selfNotify = (window->event_mask() & StructureNotifyMask);
+    const bool selfNotify = (window->event_mask() & StructureNotifyMask);
     if (selfNotify || (parent && parent->event_mask() & SubstructureNotifyMask)) {
         XEvent event = {};
         event.type = MapNotify;
