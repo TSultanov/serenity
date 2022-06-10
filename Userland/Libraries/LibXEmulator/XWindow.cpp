@@ -48,3 +48,21 @@ void XWindow::paint_event(GUI::PaintEvent& ev)
     GUI::Painter p(*this);
     p.draw_tiled_bitmap(rect(), m_bitmap);
 }
+
+void XWindow::resize_event(GUI::ResizeEvent& e)
+{
+    m_bitmap = MUST(Gfx::Bitmap::try_create(Gfx::BitmapFormat::BGRA8888, e.size()));
+    GUI::Painter painter(*m_bitmap);
+    m_painter = painter;
+
+    XLib::XEvent event;
+    XLib::XRectangle exposed = xrect_from_intrect(Gfx::IntRect(0,0, e.size().width(), e.size().height()));
+    event.type = Expose;
+    event.xany.window = id();
+    event.xexpose.x = exposed.x;
+    event.xexpose.y = exposed.y;
+    event.xexpose.width = exposed.width;
+    event.xexpose.height = exposed.height;
+    event.xexpose.count = 0;
+    _x_put_event(m_display, event);
+}

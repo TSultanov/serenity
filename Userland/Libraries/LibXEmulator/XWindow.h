@@ -27,6 +27,7 @@ public:
 
 protected:
     void paint_event(GUI::PaintEvent&) override;
+    void resize_event(GUI::ResizeEvent&) override;
 
 private:
     XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::IntRect frame);
