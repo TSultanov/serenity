@@ -8,7 +8,7 @@ ranlib = 'llvm-ranlib'
 pkgconfig = 'pkg-config'
 
 [properties]
-sys_root = '../../../../Build/i686/Root'
+sys_root = '../../../../Build/i686clang/Root'
 needs_exe_wrapper = true
 
 [host_machine]
