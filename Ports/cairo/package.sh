@@ -5,9 +5,5 @@ useconfigure="true"
 config_sub_paths=("build/config.sub")
 use_fresh_config_sub="true"
 files="https://cairographics.org/snapshots/cairo-${version}.tar.xz cairo-${version}.tar.xz"
-configopts=("")
-depends=("libpng" "pixman")
-
-export CFLAGS="-I${SERENITY_INSTALL_ROOT}/usr/local/include/libxml2"
-export LIBXML2_CFLAGS="-I${SERENITY_INSTALL_ROOT}/usr/local/include/libxml2/"
-export LIBXML2_LIBS="-lxml2"
+configopts=("--with-sysroot=${SERENITY_INSTALL_ROOT}")
+depends=("libpng" "pixman" "fontconfig")
