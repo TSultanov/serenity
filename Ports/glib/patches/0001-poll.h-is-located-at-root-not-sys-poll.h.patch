@@ -8,7 +8,7 @@ Subject: [PATCH] 'poll.h' is located at root, not 'sys/poll.h'
  1 file changed, 14 insertions(+), 4 deletions(-)
 
 diff --git a/meson.build b/meson.build
-index a330b7b..0034898 100644
+index 882049c..483fd94 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -1758,7 +1758,11 @@ g_have_gnuc_varargs = cc.compiles('''
