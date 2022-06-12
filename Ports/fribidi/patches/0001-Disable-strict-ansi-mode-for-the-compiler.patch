@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Mon, 13 Jun 2022 01:56:02 +0300
+Subject: [PATCH] Disable strict ansi mode for the compiler
+
+This makes Clang choke on including our ctypes.h
+---
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index 702eb84..419515b 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -116,7 +116,7 @@ AX_PROG_CC_FOR_BUILD
+ # Checks for compiler characteristics.
+ changequote(,)dnl
+ if test "x$GCC" = "xyes"; then
+-  CFLAGS="$CFLAGS -Wall -ansi "
++  CFLAGS="$CFLAGS -Wall "
+ fi
+ changequote([,])dnl
+ 
