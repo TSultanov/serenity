@@ -5,17 +5,27 @@ files="https://github.com/harfbuzz/harfbuzz/releases/download/${version}/harfbuz
 useconfigure='true'
 auth_type='sha256'
 depends=("freetype" "libicu")
-configopts=("-DCMAKE_TOOLCHAIN_FILE=${SERENITY_BUILD_DIR}/CMakeToolchain.txt" "-DHB_HAVE_FREETYPE=ON" "-DHB_HAVE_ICU=ON")
+configopts=("--cross-file" "cross_file.txt" "-Dcairo=disabled" "-Dtests=disabled")
+
+pre_configure() {
+    run cp "../cross_file-${SERENITY_ARCH}${SERENITY_TOOLCHAIN}.txt" "cross_file.txt"
+    run sed "s%SERENITY_BUILD_DIR%${SERENITY_BUILD_DIR}%g" -i "cross_file.txt"
+}
 
 configure() {
-    run mkdir -p build
-    run sh -c "cd build && cmake .. ${configopts[@]}"
+    # TODO: Figure out why GCC doesn't autodetect that libgcc_s is needed.
+    if [ "${SERENITY_TOOLCHAIN}" = "GNU" ]; then
+        export LDFLAGS="-lgcc_s"
+    fi
+
+    run meson _build "${configopts[@]}"
 }
 
 build() {
-    run sh -c "cd build && make ${makeopts[@]}"
+    run ninja -C _build
 }
 
 install() {
-    run sh -c "cd build && make install"
+    export DESTDIR="${SERENITY_INSTALL_ROOT}"
+    run meson install -C _build
 }
