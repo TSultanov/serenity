@@ -7,6 +7,10 @@ ar = 'llvm-ar'
 ranlib = 'llvm-ranlib'
 pkgconfig = 'pkg-config'
 
+[built-in options]
+c_args=['--target=i686-pc-serenity', '--sysroot=SERENITY_BUILD_DIR/Root']
+cpp_args=['--target=i686-pc-serenity', '--sysroot=SERENITY_BUILD_DIR/Root']
+
 [properties]
 sys_root = '../../../../Build/i686clang/Root'
 needs_exe_wrapper = true
