@@ -29,32 +29,38 @@ Serenity does not have IN_MULTICAST, just return 0
 
 Since Serenity does not have IN_MULTICAST we just return 0
 
-## `0006-Include-arpa-compatibility-definitions.patch`
+## `0006-Rename-glib-gio-mount-function-to-gio_mount.patch`
+
+Rename glib/gio mount function to gio_mount
+
+Somehow glib picks up on Serenity's mount function and gets confused
+
+## `0007-Include-arpa-compatibility-definitions.patch`
 
 Include arpa compatibility definitions
 
 Serenity is missing all that is defined in this section so let's
 include it.
 
-## `0007-Add-stub-for-function-dn_expand.patch`
+## `0008-Add-stub-for-function-dn_expand.patch`
 
 Add stub for function dn_expand.
 
 Serenity is missing dn_expand so include a stub for it
 
-## `0008-ntohl-ntohs-is-located-in-arpa-inet.h.patch`
+## `0009-ntohl-ntohs-is-located-in-arpa-inet.h.patch`
 
 ntohl/ntohs is located in 'arpa/inet.h'
 
 In Serenity ntohl/ntohs is located in arpa/inet.h, other stuff glib
 needs is included in 'netinet/in.h'.
 
-## `0009-Include-strings.h-for-strcasecmp.patch`
+## `0010-Include-strings.h-for-strcasecmp.patch`
 
 Include 'strings.h' for strcasecmp
 
 
-## `0010-Exclude-arpa-nameser.h-as-it-does-not-exist-on-Seren.patch`
+## `0011-Exclude-arpa-nameser.h-as-it-does-not-exist-on-Seren.patch`
 
 Exclude arpa/nameser.h as it does not exist on Serenity
 
