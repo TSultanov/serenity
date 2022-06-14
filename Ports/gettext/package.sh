@@ -7,6 +7,7 @@ auth_type=sha256
 depends=("libiconv")
 use_fresh_config_sub=true
 config_sub_paths=("build-aux/config.sub" "libtextstyle/build-aux/config.sub")
+configopts=("--with-sysroot=${SERENITY_INSTALL_ROOT}")
 
 install() {
     run make DESTDIR=${SERENITY_INSTALL_ROOT} "${installopts[@]}" install
