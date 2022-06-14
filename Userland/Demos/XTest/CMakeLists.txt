@@ -6,4 +6,4 @@ serenity_component(
 set(SOURCES xhello.c)
 
 serenity_app(XTest ICON filetype-executable)
-target_link_libraries(XTest LibX11 LibCore LibGUI LibGfx)
+target_link_libraries(XTest LibX11 LibXext LibCore LibGUI LibGfx)
