@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Tue, 14 Jun 2022 23:46:40 +0300
+Subject: [PATCH] Patch pkconfig path
+
+---
+ meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/meson.build b/meson.build
+index 3c75424..ae8b6c3 100644
+--- a/meson.build
++++ b/meson.build
+@@ -74,7 +74,7 @@ configure_file(
+         'prefix': get_option('prefix'),
+         'VERSION': meson.project_version()
+     },
+-    install_dir: get_option('datadir') / 'pkgconfig'
++    install_dir: get_option('libdir') / 'pkgconfig'
+ )
+ 
+ if get_option('update-mimedb')
