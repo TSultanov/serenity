@@ -47,13 +47,13 @@ XLib::XCreateWindow(XLib::Display* display, XLib::Window parent, int x, int y, u
     {
         auto host_window = MUST(GUI::Window::try_create());
         xwindow = MUST(XWindow::try_create(display, host_window, frame));
-        host_window->set_main_widget(xwindow);
+        host_window->set_main_widget(xwindow->widget());
         host_window->resize(w, h);
     }
     else
     {
-        xwindow = MUST(XWindow::try_create(display, parent_window->window(), frame));
-        xwindow->resize(w, h);
+        xwindow = MUST(XWindow::try_create(display, parent_window->widget()->window(), frame));
+        xwindow->widget()->resize(w, h);
         parent_window->add_child(*xwindow);
     }
 
@@ -98,12 +98,12 @@ XLib::XMapWindow(XLib::Display* display, XLib::Window w)
     if (window.is_null())
         return BadWindow;
 
-    if (window->window()) {
+    if (window->widget()->window()) {
         dbgln("Has parent window");
-        window->window()->show();
+        window->widget()->window()->show();
     } else {
         dbgln("Doesn't have parent window");
-        window->set_visible(true);
+        window->widget()->set_visible(true);
     }
 
     auto parent = window->parent_window();

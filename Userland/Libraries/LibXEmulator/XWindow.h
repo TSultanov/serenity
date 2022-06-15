@@ -5,13 +5,31 @@
 #include "LibGUI/Widget.h"
 #include "LibCore/Object.h"
 
+#include "XDrawable.h"
+
 namespace XLib {
 extern "C" {
 #include <X11/Xlib.h>
 }
 }
 
-class XWindow : public GUI::Widget {
+class XWindow;
+
+class _XWidgetImpl : public GUI::Widget {
+    C_OBJECT(_XWidgetImpl)
+
+protected:
+    void paint_event(GUI::PaintEvent&) override;
+    void resize_event(GUI::ResizeEvent&) override;
+
+private:
+    _XWidgetImpl(XWindow& xWindow);
+
+    XWindow& m_xWindow;
+};
+
+class XWindow : /*public GUI::Widget,*/ public XDrawable {
+    friend _XWidgetImpl;
     C_OBJECT(XWindow)
 public:
     XLib::Window id() const {
@@ -23,11 +41,9 @@ public:
 
     XWindow* parent_window();
 
-    GUI::Painter& painter() { return m_painter; }
+    GUI::Painter& painter() override { return m_painter; }
 
-protected:
-    void paint_event(GUI::PaintEvent&) override;
-    void resize_event(GUI::ResizeEvent&) override;
+    AK::NonnullRefPtr<_XWidgetImpl> widget() { return m_widget; }
 
 private:
     XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::IntRect frame);
@@ -41,4 +57,6 @@ private:
 
     AK::NonnullRefPtr<Gfx::Bitmap> m_bitmap;
     GUI::Painter m_painter;
+
+    AK::NonnullRefPtr<_XWidgetImpl> m_widget;
 };

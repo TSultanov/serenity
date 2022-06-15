@@ -45,3 +45,15 @@ void ObjectManager::remove_pixmap(XLib::Pixmap xlib_pixmap)
 {
     m_pixmaps.remove(xlib_pixmap);
 }
+
+AK::RefPtr<XDrawable> ObjectManager::get_drawable(XLib::Drawable xlib_drawable) const
+{
+    if(m_pixmaps.contains(xlib_drawable)) {
+        return *(m_pixmaps.get(xlib_drawable).value());
+    }
+
+    if(m_windows.contains(xlib_drawable))
+        return *(m_windows.get(xlib_drawable).value());
+
+    return nullptr;
+}

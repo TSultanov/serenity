@@ -44,7 +44,7 @@ XLib::Xutf8DrawString(Display */*display*/, Drawable w, XFontSet /*set*/, GC gc,
     auto window = ObjectManager::the().get_window(w); // FIXME: Consider implementing XWindow as a subclass of XDrawable
     auto& painter = window->painter();
     //bex_check_gc(window, gc);
-    Gfx::IntRect rect(x, y, window->width()-x, window->height()-y);
+    Gfx::IntRect rect(x, y, window->widget()->width()-x, window->widget()->height()-y);
     painter.draw_text(rect, str, Gfx::TextAlignment::TopLeft, Color::from_rgb(gc->values.foreground), Gfx::TextElision::None, Gfx::TextWrapping::DontWrap);
 }
 

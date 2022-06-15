@@ -24,6 +24,8 @@ public:
     AK::RefPtr<XPixmap> get_pixmap(XLib::Pixmap xlib_pixmap) const;
     XLib::Pixmap add_pixmap(AK::RefPtr<XPixmap> pixmap);
     void remove_pixmap(XLib::Pixmap xlib_pixmap);
+
+    AK::RefPtr<XDrawable> get_drawable(XLib::Drawable xlib_drawable) const;
 private:
     XLib::XID next_xid() {
         static XLib::XID xid{0};
