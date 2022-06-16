@@ -130,3 +130,30 @@ XLib::XOpenDisplay(const char*)
     sOpenDisplays++;
     return display;
 }
+
+extern "C" int
+XLib::XCloseDisplay(Display* display)
+{
+    sOpenDisplays--;
+
+//    _x_extensions_close(display);
+    _x_finalize_events(display);
+//    _x_finalize_font();
+
+    close(display->fd);
+    close(display->conn_checker);
+
+    _XFreeMutex(display->lock);
+    XFree(display->lock);
+    XFree(display->lock_fns);
+    XFree(display->free_funcs);
+    delete display;
+    return 0;
+}
+
+extern "C" int
+XLib::XFree(void *data)
+{
+    free(data);
+    return 0;
+}

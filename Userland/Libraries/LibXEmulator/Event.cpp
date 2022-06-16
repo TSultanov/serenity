@@ -200,9 +200,9 @@ void _x_init_events(XLib::Display* /*dpy*/)
 //    Events::init_for(dpy);
 }
 
-void _x_finalize_events(XLib::Display* dpy)
+void _x_finalize_events(XLib::Display* /*dpy*/)
 {
-    delete (Events*)dpy->trans_conn;
+//    delete (Events*)dpy->trans_conn;
 }
 
 void _x_put_event(XLib::Display* /*display*/, const XLib::XEvent& event)
