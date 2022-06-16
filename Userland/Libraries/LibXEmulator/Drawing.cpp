@@ -2,6 +2,7 @@
 #include "Undef.h"
 #include "XWindow.h"
 #include "ObjectManager.h"
+#include <LibGfx/ImageDecoder.h>
 
 namespace XLib {
 extern "C" {
@@ -35,6 +36,28 @@ XLib::XFillRectangles(Display */*display*/, Drawable w, GC gc,
         dbgln("background color: {}", gc->values.foreground);
     }
     return 0;
+}
+
+extern "C" int
+XLib::XPutImage(Display */*display*/, Drawable d, GC /*gc*/, XImage* image,
+    int /*src_x*/, int /*src_y*/, int dest_x, int dest_y,
+    unsigned int width, unsigned int height)
+{
+    auto drawable = ObjectManager::the().get_drawable(d);
+    if (drawable.is_null())
+        return BadDrawable;
+
+    //const auto srcRect = intrect_from_xrect(make_xrect(src_x, src_y, width, height));
+
+    AK::Span<const u8> span(image->data, image->height*image->bytes_per_line);
+    auto decoder = Gfx::ImageDecoder::try_create(span);
+    auto frame = MUST(decoder->frame(0));
+    auto bitmap = frame.image;
+
+    //bex_check_gc(drawable, gc);
+
+    drawable->painter().draw_tiled_bitmap(intrect_from_xrect(make_xrect(dest_x, dest_y, width, height)), *bitmap);
+    return Success;
 }
 
 extern "C" void
