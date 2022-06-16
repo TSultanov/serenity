@@ -9,7 +9,6 @@
 
 namespace XLib {
 extern "C" {
-#include "LibGUI/Painter.h"
 #include <X11/Xlib.h>
 }
 }
