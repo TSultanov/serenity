@@ -8,9 +8,11 @@
 
 namespace XLib {
 extern "C" {
+#define register
 #include <X11/Xlib.h>
 #include <X11/Xlibint.h>
 #include <X11/Xutil.h>
+#undef register
 }
 }
 

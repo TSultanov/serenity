@@ -6,9 +6,11 @@
 
 namespace XLib {
 extern "C" {
+#define register
 #include <X11/Xlib.h>
 #define Bool int
 #include <X11/Xlibint.h>
+#undef register
 }
 }
 
