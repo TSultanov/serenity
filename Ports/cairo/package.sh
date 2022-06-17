@@ -5,5 +5,5 @@ useconfigure="true"
 config_sub_paths=("build/config.sub")
 use_fresh_config_sub="true"
 files="https://cairographics.org/snapshots/cairo-${version}.tar.gz cairo-${version}.tar.gz"
-configopts=("--with-sysroot=${SERENITY_INSTALL_ROOT}")
+configopts=("--with-sysroot=${SERENITY_INSTALL_ROOT}" "--enable-xlib")
 depends=("libpng" "pixman" "fontconfig" "glib" "libexpat")
