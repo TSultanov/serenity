@@ -79,3 +79,10 @@ XLib::XFlush(Display* /*dpy*/)
 //    dbgln("XFlush: Flushed");
     return Success;
 }
+
+extern "C" int
+XLib::XSync(Display* /*display*/, Bool /*discard*/)
+{
+    // no-op
+    return Success;
+}
