@@ -144,3 +144,13 @@ XLib::XSetClipMask(Display* /*display*/, GC gc, Pixmap pixmap)
     gc->dirty = True;
     return Success;
 }
+
+extern "C" int
+XLib::XFreeGC(Display* /*display*/, GC gc)
+{
+    if (gc) {
+        delete (ClipMask*)gc->values.clip_mask;
+        delete gc;
+    }
+    return Success;
+}
