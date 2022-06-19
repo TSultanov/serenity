@@ -11,7 +11,8 @@ set(SOURCES
         XPixmap.cpp
         Image.cpp
         Stubs.cpp
-        Pixmap.cpp)
+        Pixmap.cpp
+        Macros.cpp)
 
 serenity_lib(LibX11 X11)
 target_include_directories(LibX11 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
