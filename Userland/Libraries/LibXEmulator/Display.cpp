@@ -152,6 +152,16 @@ XLib::XCloseDisplay(Display* display)
 }
 
 extern "C" int
+XLib::XScreenNumberOfScreen(Screen* screen)
+{
+    for (int i = 0; i < screen->display->nscreens; i++) {
+        if (&screen->display->screens[i] == screen)
+            return i;
+    }
+    return -1;
+}
+
+extern "C" int
 XLib::XFree(void *data)
 {
     free(data);
