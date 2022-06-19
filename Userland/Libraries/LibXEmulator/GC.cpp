@@ -1,6 +1,7 @@
 #undef None
 #include <LibGUI/Application.h>
 #include "ObjectManager.h"
+#include "Drawing.h"
 #include <LibGfx/Rect.h>
 #include <LibGfx/DisjointRectSet.h>
 
@@ -152,5 +153,40 @@ XLib::XFreeGC(Display* /*display*/, GC gc)
         delete (ClipMask*)gc->values.clip_mask;
         delete gc;
     }
+    return Success;
+}
+
+extern "C" int
+XLib::XSetClipOrigin(Display */*display*/, GC gc, int clip_x_origin, int clip_y_origin)
+{
+    gc->values.clip_x_origin = clip_x_origin;
+    gc->values.clip_y_origin = clip_y_origin;
+    gc->dirty = True;
+    return 0;
+}
+
+extern "C" int
+XLib::XUnionRectWithRegion(XRectangle* rect, Region src, Region res)
+{
+    Gfx::DisjointRectSet* source = (Gfx::DisjointRectSet*)src, *result = (Gfx::DisjointRectSet*)res;
+    result->clear();
+    result->add_many(source->rects());
+    result->add(intrect_from_xrect(*rect));
+    return Success;
+}
+
+extern "C" int
+XLib::XSetClipRectangles(Display *display, GC gc, int clip_x_origin, int clip_y_origin,
+    XRectangle* rect, int count, int /*ordering*/)
+{
+    ClipMask* mask = gc_clip_mask(gc);
+
+    XSetClipOrigin(display, gc, clip_x_origin, clip_y_origin);
+
+    mask->region.clear();
+    for (int i = 0; i < count; i++)
+        XUnionRectWithRegion(&rect[i], (Region)&mask->region, (Region)&mask->region);
+
+    gc->dirty = True;
     return Success;
 }
