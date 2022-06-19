@@ -5,7 +5,7 @@ files="https://github.com/harfbuzz/harfbuzz/releases/download/${version}/harfbuz
 useconfigure='true'
 auth_type='sha256'
 depends=("freetype" "libicu")
-configopts=("--cross-file" "cross_file.txt" "-Dcairo=disabled" "-Dtests=disabled")
+configopts=("--cross-file" "cross_file.txt" "-Dcairo=disabled" "-Dtests=disabled" "-Ddocs=disabled")
 
 pre_configure() {
     run cp "../cross_file-${SERENITY_ARCH}${SERENITY_TOOLCHAIN}.txt" "cross_file.txt"
@@ -13,11 +13,6 @@ pre_configure() {
 }
 
 configure() {
-    # TODO: Figure out why GCC doesn't autodetect that libgcc_s is needed.
-    if [ "${SERENITY_TOOLCHAIN}" = "GNU" ]; then
-        export LDFLAGS="-lgcc_s"
-    fi
-
     run meson _build "${configopts[@]}"
 }
 
