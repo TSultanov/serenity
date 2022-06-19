@@ -16,3 +16,10 @@ XLib::XCreateColormap(XLib::Display*, XLib::Window, XLib::Visual* visual, int al
         return (XLib::Colormap)&sDummy;
     return None;
 }
+
+extern "C" int
+XLib::XAllocColor(Display* /*dpy*/, Colormap /*cmap*/, XColor* def)
+{
+    def->pixel = _x_rgb_to_pixel(Gfx::Color(def->red, def->green, def->blue));
+    return 1;
+}
