@@ -120,3 +120,14 @@ XLib::XMapWindow(XLib::Display* display, XLib::Window w)
 
     return Success;
 }
+
+extern "C" int
+XLib::XDestroyWindow(Display */*display*/, Window w)
+{
+    auto window = ObjectManager::the().get_window(w);
+    if (window.is_null())
+        return BadWindow;
+
+    ObjectManager::the().remove_window(w);
+    return Success;
+}
