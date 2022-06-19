@@ -8,10 +8,10 @@ Subject: [PATCH] Remove Shm check
  1 file changed, 4 deletions(-)
 
 diff --git a/configure.ac b/configure.ac
-index 2ce1959..3ca0949 100644
+index 8d23ae0..4c0b950 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -120,10 +120,6 @@ CAIRO_ENABLE_SURFACE_BACKEND(xlib, Xlib, auto, [
+@@ -124,10 +124,6 @@ CAIRO_ENABLE_SURFACE_BACKEND(xlib, Xlib, auto, [
  		  AC_MSG_RESULT(no),
  		  AC_MSG_RESULT(assuming no))
        fi

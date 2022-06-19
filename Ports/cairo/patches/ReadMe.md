@@ -10,3 +10,13 @@ Remove missing headers
 Remove Shm check
 
 
+## `0003-Remove-check-which-cannot-be-executed-in-cross-compi.patch`
+
+Remove check which cannot be executed in cross compilation environment
+
+
+## `0004-Remove-Shm-headers-check.patch`
+
+Remove Shm headers check
+
+

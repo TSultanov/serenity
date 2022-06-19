@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Mon, 20 Jun 2022 00:09:32 +0300
+Subject: [PATCH] Remove Shm headers check
+
+---
+ meson.build | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index f4b0498..e7cacc8 100644
+--- a/meson.build
++++ b/meson.build
+@@ -258,11 +258,6 @@ if x11_dep.found() and xext_dep.found()
+   }]
+ 
+   extra_headers = ['X11/Xlibint.h', 'X11/Xproto.h']
+-  check_headers += [
+-    ['X11/extensions/XShm.h', {'extra-headers': extra_headers}],
+-    ['X11/extensions/shmproto.h', {'extra-headers': extra_headers}],
+-    ['X11/extensions/shmstr.h', {'extra-headers': extra_headers}],
+-  ]
+   deps += [x11_dep, xext_dep]
+ endif
+ 

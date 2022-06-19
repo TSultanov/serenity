@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Mon, 20 Jun 2022 00:06:22 +0300
+Subject: [PATCH] Remove check which cannot be executed in cross compilation
+ environment
+
+---
+ meson.build | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index b159b40..f4b0498 100644
+--- a/meson.build
++++ b/meson.build
+@@ -264,13 +264,6 @@ if x11_dep.found() and xext_dep.found()
+     ['X11/extensions/shmstr.h', {'extra-headers': extra_headers}],
+   ]
+   deps += [x11_dep, xext_dep]
+-  res = cc.run(files('meson-cc-tests/ipc_rmid_deferred_release.c'),
+-    dependencies: [x11_dep, xext_dep],
+-    name: 'shmctl IPC_RMID allowes subsequent attaches')
+-
+-  if res.returncode() == 0
+-    conf.set('IPC_RMID_DEFERRED_RELEASE', 1)
+-  endif
+ endif
+ 
+ if feature_conf.get('CAIRO_HAS_XLIB_SURFACE', 0) == 1
