@@ -1,12 +1,14 @@
-#include "ObjectManager.h"
 #include "Drawing.h"
+#include "ObjectManager.h"
 #include <LibGfx/Bitmap.h>
 
 namespace XLib {
 extern "C" {
 #define register
 #include <X11/Xlib.h>
+#define Bool int
 #include <X11/Xlibint.h>
+#include <X11/Xutil.h>
 #undef register
 }
 }
@@ -187,4 +189,26 @@ XLib::XGetSubImage(Display* /*display*/, Drawable d,
 
     memcpy(dest_image->data, dest_bitmap->anonymous_buffer().data<char>(), dest_image->height * dest_image->bytes_per_line);
     return dest_image;
+}
+
+extern "C" XLib::XImage*
+XLib::XGetImage(Display *display, Drawable d,
+    int x, int y, unsigned int width, unsigned int height,
+    unsigned long plane_mask, int format)
+{
+    auto pixmap = ObjectManager::the().get_pixmap(d);
+    if (pixmap.is_null())
+        return NULL;
+
+    XImage* image = XCreateImage(display, NULL, pixmap->depth(), format, 0, NULL,
+        width, height, 32, 0);
+    if (!image)
+        return NULL;
+
+    if (!XGetSubImage(display, d, x, y, width, height, plane_mask, format, image, 0, 0)) {
+        XDestroyImage(image);
+        return NULL;
+    }
+
+    return image;
 }

@@ -20,6 +20,8 @@ public:
 
     AK::RefPtr<Gfx::Bitmap> bitmap() { return m_bitmap; }
     GUI::Painter& painter() override { return m_painter; }
+
+    int depth() { return m_depth; }
 private:
     XPixmap(XLib::Display* dpy, Gfx::IntRect frame);
 
@@ -29,4 +31,6 @@ private:
 
     AK::RefPtr<Gfx::Bitmap> m_bitmap;
     GUI::Painter m_painter;
+
+    const int m_depth = 32;
 };
