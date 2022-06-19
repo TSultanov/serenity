@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Mon, 20 Jun 2022 01:02:00 +0300
+Subject: [PATCH] Remove err.h
+
+---
+ src/dispatch_common.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/src/dispatch_common.c b/src/dispatch_common.c
+index 153eb7c..10bd1c8 100644
+--- a/src/dispatch_common.c
++++ b/src/dispatch_common.c
+@@ -164,7 +164,6 @@
+ #include <windows.h>
+ #else
+ #include <dlfcn.h>
+-#include <err.h>
+ #include <pthread.h>
+ #endif
+ #include <string.h>
+@@ -306,8 +305,8 @@ get_dlopen_handle(void **handle, const char *lib_name, bool exit_on_fail, bool l
+     pthread_mutex_lock(&api.mutex);
+     if (!*handle) {
+         int flags = RTLD_LAZY | RTLD_LOCAL;
+-        if (!load)
+-            flags |= RTLD_NOLOAD;
++        // if (!load)
++        //     flags |= RTLD_NOLOAD;
+ 
+         *handle = dlopen(lib_name, flags);
+         if (!*handle) {
