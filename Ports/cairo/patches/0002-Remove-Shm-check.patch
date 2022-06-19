@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Sun, 19 Jun 2022 23:03:32 +0300
+Subject: [PATCH] Remove Shm check
+
+---
+ configure.ac | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 2ce1959..3ca0949 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -120,10 +120,6 @@ CAIRO_ENABLE_SURFACE_BACKEND(xlib, Xlib, auto, [
+ 		  AC_MSG_RESULT(no),
+ 		  AC_MSG_RESULT(assuming no))
+       fi
+-
+-      AC_CHECK_HEADERS([X11/extensions/XShm.h X11/extensions/shmproto.h X11/extensions/shmstr.h], [], [],
+-		       [#include <X11/Xlibint.h>
+-			#include <X11/Xproto.h>])
+ ])
+ 
+ CAIRO_ENABLE_SURFACE_BACKEND(xlib_xrender, Xlib Xrender, auto, [

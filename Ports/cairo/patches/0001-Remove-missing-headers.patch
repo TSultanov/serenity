@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Sun, 19 Jun 2022 22:55:24 +0300
+Subject: [PATCH] Remove missing headers
+
+---
+ src/cairo-xlib-surface.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/src/cairo-xlib-surface.c b/src/cairo-xlib-surface.c
+index ee14af2..26ac0d0 100644
+--- a/src/cairo-xlib-surface.c
++++ b/src/cairo-xlib-surface.c
+@@ -69,8 +69,6 @@
+ #include <X11/Xutil.h> /* for XDestroyImage */
+ 
+ #include <X11/extensions/XShm.h>
+-#include <sys/ipc.h>
+-#include <sys/shm.h>
+ 
+ #define XLIB_COORD_MAX 32767
+ 
