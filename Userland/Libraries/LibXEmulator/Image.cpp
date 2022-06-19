@@ -4,7 +4,10 @@
 
 namespace XLib {
 extern "C" {
+#define register
 #include <X11/Xlib.h>
+#include <X11/Xlibint.h>
+#undef register
 }
 }
 
@@ -89,6 +92,53 @@ ImagePutPixel(XLib::XImage* image, int x, int y, unsigned long pixel)
     return 0;
 }
 
+extern "C" XLib::XImage*
+XLib::XCreateImage(Display *display, Visual *visual,
+    unsigned int depth, int format, int offset, char *data,
+    unsigned int width, unsigned int height,
+    int bitmap_pad, int bytes_per_line)
+{
+    if (format != ZPixmap)
+        return NULL;
+
+    XImage* image = new XImage;
+    if (!image)
+        return NULL;
+    memset(image, 0, sizeof(XImage));
+
+    image->height = height;
+    image->width = width;
+    image->depth = depth;
+    image->xoffset = offset;
+    image->format = format;
+    image->data = data;
+    image->bitmap_pad = bitmap_pad;
+
+    if (depth == 8) {
+        image->bits_per_pixel = image->bitmap_unit = 8;
+    } else {
+        if (!visual && depth >= 24)
+            visual = display->screens[0].root_visual;
+        image->bits_per_pixel = depth;
+        image->bitmap_unit = ((depth+7)/8)*8;
+    }
+    image->bytes_per_line = bytes_per_line;
+
+    image->byte_order = LSBFirst;
+    image->bitmap_bit_order = LSBFirst;
+    if (visual) {
+        image->red_mask = visual->red_mask;
+        image->green_mask = visual->green_mask;
+        image->blue_mask = visual->blue_mask;
+    }
+
+    if (!XInitImage(image)) {
+        delete image;
+        return NULL;
+    }
+
+    return image;
+}
 
 extern "C" Status
 XLib::XInitImage(XImage* image)
