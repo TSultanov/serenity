@@ -79,3 +79,21 @@ XLib::XDrawString(Display* display, Drawable w, GC gc, int x, int y, const char*
     Xutf8DrawString(display, w, NULL, gc, x, y, str, len);
     return 0;
 }
+
+extern "C" int
+XLib::XCopyArea(Display* /*display*/, Drawable src, Drawable dest, GC /*gc*/,
+    int src_x, int src_y, unsigned int width, unsigned int height, int dest_x, int dest_y)
+{
+    auto src_d = ObjectManager::the().get_drawable(src);
+    auto dest_d = ObjectManager::the().get_drawable(dest);
+    if (src_d.is_null() || dest_d.is_null())
+        return BadDrawable;
+
+    const Gfx::IntRect src_rect(src_x, src_y, width, height);
+    const Gfx::IntRect dest_rect(dest_x, dest_y, width, height);
+
+
+    auto cropped_bitmap = MUST(src_d->bitmap()->cropped(src_rect));
+    dest_d->painter().draw_tiled_bitmap(dest_rect, cropped_bitmap);
+    return Success;
+}

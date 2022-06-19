@@ -45,6 +45,8 @@ public:
 
     AK::NonnullRefPtr<_XWidgetImpl> widget() { return m_widget; }
 
+    AK::RefPtr<Gfx::Bitmap> bitmap() override { return m_bitmap;}
+
 private:
     XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::IntRect frame);
 

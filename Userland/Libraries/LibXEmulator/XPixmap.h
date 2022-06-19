@@ -18,7 +18,7 @@ class XPixmap : public XDrawable {
 public:
     XLib::Pixmap id() { return m_id; }
 
-    AK::RefPtr<Gfx::Bitmap> bitmap() { return m_bitmap; }
+    AK::RefPtr<Gfx::Bitmap> bitmap() override { return m_bitmap; }
     GUI::Painter& painter() override { return m_painter; }
 
     int depth() { return m_depth; }
