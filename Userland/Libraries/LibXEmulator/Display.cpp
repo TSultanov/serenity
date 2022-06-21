@@ -8,6 +8,7 @@
 
 #include "Color.h"
 #include "Lock.h"
+#include "Atom.h"
 #undef max
 #include "Font.h"
 #include "Event.h"
@@ -124,7 +125,7 @@ XLib::XOpenDisplay(const char*)
     s_app = MUST(GUI::Application::try_create(0, nullptr, Core::EventLoop::MakeInspectable::Yes));
 
     set_display(display);
-//    _x_init_atoms();
+    _x_init_atoms();
     _x_init_font();
     _x_init_events(display);
     sOpenDisplays++;

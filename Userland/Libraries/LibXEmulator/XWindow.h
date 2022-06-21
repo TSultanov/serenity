@@ -47,6 +47,8 @@ public:
 
     AK::RefPtr<Gfx::Bitmap> bitmap() override { return m_bitmap;}
 
+    XLib::Display * display() { return m_display; }
+
 private:
     XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::IntRect frame);
 

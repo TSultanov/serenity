@@ -4,6 +4,7 @@
 #include "ObjectManager.h"
 #include "XWindow.h"
 #include "Event.h"
+#include "Property.h"
 
 #include <sys/ioctl.h>
 
@@ -85,4 +86,38 @@ XLib::XSync(Display* /*display*/, Bool /*discard*/)
 {
     // no-op
     return Success;
+}
+
+extern "C" int
+XLib::XSendEvent(Display* display, Window w, Bool /*propagate*/, long /*event_mask*/, XEvent* event_send)
+{
+    if (w == DefaultRootWindow(display)) {
+        if (event_send->type == SelectionClear || event_send->type == SelectionRequest
+            || event_send->type == SelectionNotify) {
+            dbgln("LibXEmulator: Implement _x_handle_send_root_selection"); //TODO
+            //_x_handle_send_root_selection(display, *event_send);
+            return 0;
+        }
+        _x_handle_send_root(display, *event_send);
+        return 0;
+    }
+
+    XWindow* window = ObjectManager::the().get_window(w);
+    // FIXME
+//    if (w == PointerWindow)
+//        window = Drawables::pointer();
+//    else if (w == InputFocus)
+//        window = Drawables::focused();
+    if (!window)
+        return 0;
+
+    // TODO
+//    if (!Events::is_match(window->event_mask(), event_send->type))
+//        return 1;
+
+    event_send->xany.display = display;
+    event_send->xany.window = w;
+    event_send->xany.send_event = True;
+    _x_put_event(display, *event_send);
+    return 1;
 }

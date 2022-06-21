@@ -6,7 +6,12 @@ extern "C" {
 }
 }
 
-#define _x_current_time() (Time(system_time() / 1000))
+#include <time.h>
+
+inline XLib::Time _x_current_time()
+{
+    return XLib::Time(time(nullptr) / 1000);
+}
 
 void _x_init_events(XLib::Display* dpy);
 void _x_finalize_events(XLib::Display* dpy);
