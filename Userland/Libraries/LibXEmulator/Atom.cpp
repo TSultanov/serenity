@@ -40,6 +40,22 @@ struct AK::Traits<AtomEntry> : public GenericTraits<AtomEntry> {
 static AK::HashTable<AtomEntry> sAtoms;
 static AK::HashMap<XLib::Atom, AtomEntry> sPredefinedAtoms;
 
+extern "C" XLib::Atom
+XLib::XInternAtom(Display* /*dpy*/, const char* name, Bool onlyIfExists)
+{
+    const auto result = sAtoms.find(name);
+    if (result == sAtoms.end()) {
+        if (onlyIfExists) {
+            fprintf(stderr, "libX11: client requested non-existent Atom '%s'\n", name);
+            return None;
+        }
+
+        sAtoms.set(name);
+        return (Atom)(sAtoms.find(name)->string.impl()->characters());
+    }
+    return sAtoms.find(name)->id != (Atom)-1 ? sAtoms.find(name)->id : (Atom)(sAtoms.find(name)->string.impl()->characters());
+}
+
 void
 _x_init_atoms()
 {
