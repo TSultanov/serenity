@@ -131,3 +131,21 @@ XLib::XDestroyWindow(Display */*display*/, Window w)
     ObjectManager::the().remove_window(w);
     return Success;
 }
+
+extern "C" int
+XLib::XClearArea(Display */*display*/, Window w,
+    int /*x*/, int /*y*/, unsigned int /*width*/, unsigned int /*height*/, Bool /*exposures*/)
+{
+    auto window = ObjectManager::the().get_window(w);
+    if (window.is_null())
+        return BadWindow;
+
+//    Gfx::IntRect rect(intrect_from_xrect(make_xrect(x, y, width, height)));
+//    //window->draw_border(rect); // FIXME
+//    if (exposures && window->widget()->window()) {
+//        window->widget()-;
+//    }
+    // TODO: figure out how to do this
+    dbgln("LibXEmulator: XClearArea stub");
+    return Success;
+}
