@@ -63,6 +63,18 @@ XLib::XNextEvent(Display* display, XEvent* event)
 }
 
 extern "C" int
+XLib::XPeekEvent(Display* display, XEvent* event)
+{
+    XFlush(display);
+    while(s_event_queue.is_empty()) {
+        dbgln("Pump");
+        GUI::Application::the()->event_loop().pump(Core::EventLoop::WaitMode::WaitForEvents);
+    }
+    *event = s_event_queue.head();
+    return Success;
+}
+
+extern "C" int
 XLib::XFlush(Display* /*dpy*/)
 {
     // We only have the "input buffer" to flush.
@@ -121,3 +133,4 @@ XLib::XSendEvent(Display* display, Window w, Bool /*propagate*/, long /*event_ma
     _x_put_event(display, *event_send);
     return 1;
 }
+
