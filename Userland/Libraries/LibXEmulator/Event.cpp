@@ -134,3 +134,16 @@ XLib::XSendEvent(Display* display, Window w, Bool /*propagate*/, long /*event_ma
     return 1;
 }
 
+extern "C" int
+XLib::XEventsQueued(Display* display, int mode)
+{
+    if (mode != QueuedAlready && !QLength(display))
+        XFlush(display);
+    return QLength(display);
+}
+
+extern "C" int
+XLib::XPending(Display* display)
+{
+    return XEventsQueued(display, QueuedAfterFlush);
+}
