@@ -668,5 +668,12 @@ XFreeColormap(Display* display, Colormap colormap)
 {
     return Success;
 }
+
+extern "C" int
+XSetSelectionOwner(Display* display, Atom selection, Window owner, XLib::Time time)
+{
+    UNIMPLEMENTED();
+    return BadImplementation;
+}
 }
 #pragma GCC diagnostic pop
