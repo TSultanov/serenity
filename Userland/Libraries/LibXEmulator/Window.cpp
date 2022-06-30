@@ -1,7 +1,8 @@
-#include "ObjectManager.h"
 #include "Drawing.h"
-#include "XWindow.h"
 #include "Event.h"
+#include "ObjectManager.h"
+#include "X11/Xatom.h"
+#include "XWindow.h"
 #undef None
 #include <LibGUI/Application.h>
 #include <LibGfx/Palette.h>
@@ -10,8 +11,10 @@ namespace XLib {
 extern "C" {
 #define register
 #include <X11/Xlib.h>
+#define Bool int
 #include <X11/Xlibint.h>
 #include <X11/Xutil.h>
+#include <X11/Xatom.h>
 #undef register
 }
 }
@@ -161,7 +164,7 @@ XLib::XSetInputFocus(Display* /*display*/, Window focus, int /*revert_to*/, Time
 {
     auto window = ObjectManager::the().get_window(focus);
     if (focus == PointerRoot)
-        window = NULL;
+        window = nullptr;
     if (window && !window->widget()->window())
         return BadWindow;
 
@@ -217,5 +220,126 @@ XLib::XTranslateCoordinates(Display* display,
     UNIMPLEMENTED();
     return True;
 }
+
+
+extern "C" XSizeHints*
+XAllocSizeHints()
+{
+    return (XSizeHints*)malloc(sizeof(XSizeHints));
+}
+
+extern "C" int
+XGetNormalHints(Display* display, Window w, XSizeHints* hints)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+extern "C" int
+XSetNormalHints(Display* display, Window w, XSizeHints* hints)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+extern "C" Status
+XSetWMProtocols(Display* display, Window w, Atom* protocols, int count)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+extern "C" Status
+XGetWMNormalHints(Display* display, Window w, XSizeHints* hints_return, long* supplied_return)
+{
+    UNIMPLEMENTED();
+    return 0;
+}
+
+extern "C" void
+XSetWMNormalHints(Display* display, Window w, XSizeHints* hints)
+{
+    XSetNormalHints(display, w, hints);
+}
+
+extern "C" int
+XSetStandardProperties(Display* display, Window w,
+	const char* window_name, const char* icon_name, Pixmap icon_pixmap,
+    char** argv, int argc, XSizeHints* hints)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+extern "C" void
+XSetWMProperties(Display* display, Window w, XTextProperty* window_name, XTextProperty* icon_name,
+    char** argv, int argc, XSizeHints* normal_hints, XWMHints* wm_hints, XClassHint* class_hints)
+{
+    if (window_name)
+        XSetWMName(display, w, window_name);
+    if (icon_name)
+        XSetWMIconName(display, w, icon_name);
+    if (normal_hints)
+        XSetWMNormalHints(display, w, normal_hints);
+    if (wm_hints)
+        XSetWMHints(display, w, wm_hints);
+    if (class_hints)
+        XSetClassHint(display, w, class_hints);
+}
+
+extern "C" XWMHints*
+XAllocWMHints(void)
+{
+    return (XWMHints*)malloc(sizeof(XWMHints));
+}
+
+extern "C" Status
+XGetWMName(Display* display, Window w, XTextProperty* name_return)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+extern "C" void
+XSetWMName(Display* display, Window w, XTextProperty* name)
+{
+    UNIMPLEMENTED();
+}
+
+extern "C" int
+XFetchName(Display* display, Window w, char** window_name_return)
+{
+    UNIMPLEMENTED();
+    return BadWindow;
+}
+
+extern "C" int
+XLib::XStoreName(Display* display, Window w, const char* wname)
+{
+    UNIMPLEMENTED();
+    return 0;
+}
+
+extern "C" int
+XSetWindowBackground(Display *display, Window w, unsigned long bg)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+extern "C" int
+XSetWindowBorder(Display* display, Window w, unsigned long border_pixel)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+extern "C" int
+XClearWindow(Display *display, Window w)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
 
 #pragma GCC diagnostic pop
