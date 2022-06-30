@@ -174,4 +174,12 @@ XUngrabKeyboard(Display *display, XLib::Time time)
 }
 
 
+extern "C" int
+XLookupString(XKeyEvent* key_event, char* buffer_return, int bytes_buffer,
+    KeySym* keysym_return, XComposeStatus* status_in_out)
+{
+    UNIMPLEMENTED();
+    return 0;
+}
+
 #pragma GCC diagnostic pop

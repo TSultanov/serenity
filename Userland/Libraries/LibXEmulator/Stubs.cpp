@@ -444,5 +444,13 @@ int XRestackWindows(Display* display, Window windows[], int nwindows)
     UNIMPLEMENTED();
     return BadImplementation;
 }
+
+extern "C" int
+XBell(Display* dpy, int percent)
+{
+    UNIMPLEMENTED();
+    return 0;
+}
+
 }
 #pragma GCC diagnostic pop
