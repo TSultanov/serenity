@@ -156,6 +156,26 @@ XLib::XAllocClassHint(void)
     return (XClassHint*)malloc(sizeof(XClassHint));
 }
 
+extern "C" int
+XLib::XSetInputFocus(Display* /*display*/, Window focus, int /*revert_to*/, Time time)
+{
+    auto window = ObjectManager::the().get_window(focus);
+    if (focus == PointerRoot)
+        window = NULL;
+    if (window && !window->widget()->window())
+        return BadWindow;
+
+    if (time > _x_current_time())
+        return Success;
+//    if (window == Drawables::focused())
+//        return Success;
+
+    const bool defocus = window.is_null();
+
+    window->widget()->set_focus(defocus);
+    return Success;
+}
+
 // stubs
 #define UNIMPLEMENTED() dbgln("Stub: {}", __func__)
 
