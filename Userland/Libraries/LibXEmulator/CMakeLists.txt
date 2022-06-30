@@ -18,6 +18,7 @@ set(SOURCES
         Property.cpp
         Keyboard.cpp
         Resource.cpp
+        Cursor.cpp
         xorg/Context.c
         xorg/Depths.c
         xorg/Geom.c
