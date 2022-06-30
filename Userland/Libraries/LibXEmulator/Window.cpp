@@ -149,3 +149,22 @@ XLib::XClearArea(Display */*display*/, Window w,
     dbgln("LibXEmulator: XClearArea stub");
     return Success;
 }
+
+// stubs
+#define UNIMPLEMENTED() dbgln("Stub: {}", __func__)
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-result"
+
+using namespace XLib;
+
+extern "C" int
+XGrabPointer(Display* display, Window grab_w, Bool owner_events, unsigned int event_mask,
+    int pointer_mode, int keyboard_mode, Window confine_to_w, Cursor cursor, XLib::Time time)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+#pragma GCC diagnostic pop
