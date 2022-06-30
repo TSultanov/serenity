@@ -19,6 +19,7 @@ namespace XLib {
 extern "C" {
 #include <X11/Xlib.h>
 #include <X11/Xlibint.h>
+#include <X11/Xutil.h>
 }
 }
 
@@ -167,4 +168,52 @@ XLib::XFree(void *data)
 {
     free(data);
     return 0;
+}
+
+static void
+fill_visual_info(XLib::Visual* v, XLib::XVisualInfo* info)
+{
+    info->visual = v;
+    info->visualid = info->visual->visualid;
+    info->screen = 0;
+    info->depth = info->visual->bits_per_rgb;
+    info->c_class = info->visual->c_class;
+    info->colormap_size = info->visual->map_entries;
+    info->bits_per_rgb = info->visual->bits_per_rgb;
+    info->red_mask = info->visual->red_mask;
+    info->green_mask = info->visual->green_mask;
+    info->blue_mask = info->visual->blue_mask;
+}
+
+extern "C" XLib::XVisualInfo*
+XLib::XGetVisualInfo(Display *display, long vinfo_mask, XVisualInfo *vinfo_template, int *nitems_return)
+{
+    XVisualInfo* info = (XVisualInfo*)calloc(1, sizeof(XVisualInfo));
+    fill_visual_info(DefaultVisual(display, 0), info);
+
+    if (((vinfo_mask & VisualIDMask)
+            && (vinfo_template->visualid != info->visualid))
+        || ((vinfo_mask & VisualScreenMask)
+            && (vinfo_template->screen != info->screen))
+        || ((vinfo_mask & VisualDepthMask)
+            && (vinfo_template->depth != info->depth))
+        || ((vinfo_mask & VisualClassMask)
+            && (vinfo_template->c_class != info->c_class))
+        || ((vinfo_mask & VisualColormapSizeMask)
+            && (vinfo_template->colormap_size != info->colormap_size))
+        || ((vinfo_mask & VisualBitsPerRGBMask)
+            && (vinfo_template->bits_per_rgb != info->bits_per_rgb))
+        || ((vinfo_mask & VisualRedMaskMask)
+            && (vinfo_template->red_mask != info->red_mask))
+        || ((vinfo_mask & VisualGreenMaskMask)
+            && (vinfo_template->green_mask != info->green_mask))
+        || ((vinfo_mask & VisualBlueMaskMask)
+            && (vinfo_template->blue_mask != info->blue_mask))
+    ) {
+        free(info);
+        return NULL;
+    }
+
+    *nitems_return = 1;
+    return info;
 }

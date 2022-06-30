@@ -655,6 +655,18 @@ XGetSelectionOwner(Display* display, Atom selection)
     return None;
 }
 
+extern "C" Bool
+XIfEvent(Display* display, XEvent* event_return,
+    Bool (*predicate)(Display*, XEvent*, XPointer), XPointer arg)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
 
+extern "C" Status
+XFreeColormap(Display* display, Colormap colormap)
+{
+    return Success;
+}
 }
 #pragma GCC diagnostic pop
