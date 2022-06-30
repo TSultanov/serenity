@@ -150,6 +150,12 @@ XLib::XClearArea(Display */*display*/, Window w,
     return Success;
 }
 
+extern "C" XLib::XClassHint*
+XLib::XAllocClassHint(void)
+{
+    return (XClassHint*)malloc(sizeof(XClassHint));
+}
+
 // stubs
 #define UNIMPLEMENTED() dbgln("Stub: {}", __func__)
 
