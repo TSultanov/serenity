@@ -390,4 +390,12 @@ XQueryTree(Display* display, Window w, Window* root_return,
     return Success;
 }
 
+extern "C" int
+XConfigureWindow(Display* display, Window w, unsigned int value_mask, XWindowChanges* values)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+
 #pragma GCC diagnostic pop
