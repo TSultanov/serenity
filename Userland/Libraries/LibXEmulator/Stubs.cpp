@@ -683,5 +683,13 @@ XmbTextListToTextProperty(Display* display, char** list, int count, XICCEncoding
     UNIMPLEMENTED();
     return NULL;
 }
+
+extern "C" Status
+XmbTextPropertyToTextList(Display* display, const XTextProperty* text_prop,
+    char*** list_return, int* count_return)
+{
+    UNIMPLEMENTED();
+    return BadAlloc;
+}
 }
 #pragma GCC diagnostic pop
