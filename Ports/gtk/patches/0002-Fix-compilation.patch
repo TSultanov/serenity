@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Fri, 1 Jul 2022 00:28:12 +0300
+Subject: [PATCH] Fix compilation
+
+---
+ gdk/x11/gdkdevicemanager-x11.c | 3 +++
+ gdk/x11/gdkglcontext-x11.c     | 2 ++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/gdk/x11/gdkdevicemanager-x11.c b/gdk/x11/gdkdevicemanager-x11.c
+index 2e7ea1f..131e9a9 100644
+--- a/gdk/x11/gdkdevicemanager-x11.c
++++ b/gdk/x11/gdkdevicemanager-x11.c
+@@ -156,3 +156,6 @@ gdk_x11_device_get_id (GdkDevice *device)
+ 
+   return device_id;
+ }
++
++GType gdk_x11_device_xi2_get_type (void) G_GNUC_CONST {}
++GType gdk_x11_device_manager_xi2_get_type (void) G_GNUC_CONST {}
+\ No newline at end of file
+diff --git a/gdk/x11/gdkglcontext-x11.c b/gdk/x11/gdkglcontext-x11.c
+index 482541f..3655268 100644
+--- a/gdk/x11/gdkglcontext-x11.c
++++ b/gdk/x11/gdkglcontext-x11.c
+@@ -1415,3 +1415,5 @@ gdk_x11_display_get_glx_version (GdkDisplay *display,
+   return TRUE;
+ #endif
+ }
++
++GType gdk_x11_gl_context_get_type (void) G_GNUC_CONST {}

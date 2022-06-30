@@ -5,3 +5,8 @@
 Apply Haiku patches with some changes
 
 
+## `0002-Fix-compilation.patch`
+
+Fix compilation
+
+
