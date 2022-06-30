@@ -16,7 +16,20 @@ set(SOURCES
         Extension.cpp
         Atom.cpp
         Property.cpp
-        Keyboard.cpp)
+        Keyboard.cpp
+        Resource.cpp
+        xorg/Context.c
+        xorg/Depths.c
+        xorg/Geom.c
+        xorg/ParseCmd.c
+        xorg/ParseGeom.c
+        xorg/RdBitF.c
+        xorg/reallocarray.c
+        xorg/ScrResStr.c
+        xorg/StrToText.c
+        xorg/TextToStr.c
+        xorg/WMGeom.c
+        xorg/Xrm.c)
 
 serenity_lib(LibX11 X11)
 target_include_directories(LibX11 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

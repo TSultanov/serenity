@@ -1,19 +1,32 @@
 #include <pthread.h>
 
+#ifdef __cplusplus
 namespace XLib {
 extern "C" {
+#endif
+
 #define register
 #include <X11/Xlib.h>
 #include <X11/Xlibint.h>
 #undef register
+#ifdef __cplusplus
 }
 }
+#endif
 
+#ifdef __cplusplus
 struct XLib::_XLockInfo {
+#else
+struct _XLockInfo {
+#endif
     pthread_mutex_t mutex;
 };
 
+#ifdef __cplusplus
 typedef struct XLib::_XLockInfo LockInfoRec;
+#else
+typedef struct _XLockInfo LockInfoRec;
+#endif
 
 #undef _XLockMutex
 #undef _XUnlockMutex
@@ -21,7 +34,11 @@ typedef struct XLib::_XLockInfo LockInfoRec;
 #undef _XFreeMutex
 
 static inline void
+#ifdef __cplusplus
 _XCreateMutex(struct XLib::_XLockInfo* info)
+#else
+_XCreateMutex(struct _XLockInfo* info)
+#endif
 {
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
