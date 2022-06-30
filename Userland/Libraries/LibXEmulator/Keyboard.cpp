@@ -19,6 +19,13 @@ extern "C" {
 
 using namespace XLib;
 
+extern "C" KeyCode
+XKeysymToKeycode(Display* display, KeySym keysym)
+{
+    UNIMPLEMENTED();
+    return 0;
+}
+
 extern "C" Bool
 XkbUseExtension(Display* dpy, int* major_rtrn, int* minor_rtrn)
 {
