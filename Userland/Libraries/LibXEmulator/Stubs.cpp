@@ -675,5 +675,13 @@ XSetSelectionOwner(Display* display, Atom selection, Window owner, XLib::Time ti
     UNIMPLEMENTED();
     return BadImplementation;
 }
+
+extern "C" int
+XmbTextListToTextProperty(Display* display, char** list, int count, XICCEncodingStyle style,
+    XTextProperty* text_prop_return)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
 }
 #pragma GCC diagnostic pop
