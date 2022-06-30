@@ -452,5 +452,167 @@ XBell(Display* dpy, int percent)
     return 0;
 }
 
+
+extern "C" XIM
+XOpenIM(Display* dpy,
+    struct _XrmHashBucketRec* rdb, char* res_name, char* res_class)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" Display*
+XDisplayOfIM(XIM im)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" char*
+XLocaleOfIM(XIM im)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" char*
+XGetIMValues(XIM im, ...)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" char*
+XSetIMValues(XIM im, ...)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" Bool
+XRegisterIMInstantiateCallback(Display* dpy,
+    struct _XrmHashBucketRec* rdb, char* res_name, char* res_class,
+    XIDProc callback, XPointer client_data)
+{
+    UNIMPLEMENTED();
+    return False;
+}
+
+extern "C" Bool
+XUnregisterIMInstantiateCallback(Display* dpy,
+    struct _XrmHashBucketRec* rdb, char* res_name, char* res_class,
+    XIDProc callback, XPointer client_data)
+{
+    UNIMPLEMENTED();
+    return False;
+}
+
+extern "C" Status
+XCloseIM(XIM xim)
+{
+    UNIMPLEMENTED();
+    return 0;
+}
+
+extern "C" XIC
+XCreateIC(XIM xim, ...)
+{
+    UNIMPLEMENTED();
+    // Unimplemented.
+    return NULL;
+}
+
+extern "C" XIM
+XIMOfIC(XIC ic)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" char*
+XmbResetIC(XIC ic)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" void
+XDestroyIC(XIC ic)
+{
+    UNIMPLEMENTED();
+}
+
+extern "C" char*
+XSetICValues(XIC ic, ...)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" char*
+XGetICValues(XIC ic, ...)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" void
+XSetICFocus(XIC ic)
+{
+    UNIMPLEMENTED();
+}
+
+extern "C" void
+XUnsetICFocus(XIC ic)
+{
+    UNIMPLEMENTED();
+}
+
+extern "C" Bool
+XFilterEvent(XEvent *event, Window window)
+{
+    UNIMPLEMENTED();
+    return 0;
+}
+
+extern "C" int
+Xutf8LookupString(XIC ic, XKeyPressedEvent* event,
+    char* buffer_return, int bytes_buffer, KeySym* keysym_return, Status* status_return)
+{
+    UNIMPLEMENTED();
+    return BadImplementation;
+}
+
+extern "C" XVaNestedList
+XVaCreateNestedList(int dummy, ...)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+extern "C" Bool
+XCheckIfEvent(Display* display, XEvent* event_return,
+    Bool (*predicate)(Display*, XEvent*, XPointer), XPointer arg)
+{
+    UNIMPLEMENTED();
+    return False;
+}
+
+extern "C" int
+XConvertSelection(Display* display, Atom selection, Atom target,
+    Atom property, Window requestor, XLib::Time time)
+{
+    UNIMPLEMENTED();
+    return 1;
+}
+
+extern "C" void
+XmbSetWMProperties(Display* display, Window w,
+	const char* window_name, const char* icon_name, char** argv, int argc,
+    XSizeHints* normal_hints, XWMHints* wm_hints, XClassHint* class_hints)
+{
+    UNIMPLEMENTED();
+}
+
 }
 #pragma GCC diagnostic pop

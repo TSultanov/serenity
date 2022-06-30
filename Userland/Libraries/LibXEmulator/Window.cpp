@@ -174,4 +174,22 @@ XUngrabPointer(Display* display, XLib::Time time)
     return GrabSuccess;
 }
 
+extern "C" int
+XMoveResizeWindow(Display *display, Window w,
+    int x, int y, unsigned int width, unsigned int height)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+
+extern "C" Bool
+XLib::XTranslateCoordinates(Display* display,
+    Window src_w, Window dest_w, int src_x, int src_y,
+    int* dest_x_return, int* dest_y_return, Window* child_return)
+{
+    UNIMPLEMENTED();
+    return True;
+}
+
 #pragma GCC diagnostic pop
