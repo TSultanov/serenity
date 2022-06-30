@@ -148,3 +148,38 @@ _x_init_atoms()
 #include "atoms.h"
 #undef ATOM
 }
+
+extern "C" Status
+XLib::XInternAtoms(Display* dpy, char** names, int count, Bool onlyIfExists,
+    Atom* atoms_return)
+{
+    int i, missed = 0;
+    for (i = 0; i < count; i++) {
+        if (!(atoms_return[i] = XInternAtom(dpy, names[i], onlyIfExists))) {
+            missed = i;
+        }
+    }
+    return missed ? Success : BadAtom;
+}
+
+
+extern "C" char*
+XLib::XGetAtomName(Display* /*display*/, Atom atom)
+{
+    if (atom < Atoms::_predefined_atom_count) {
+        const auto it = sPredefinedAtoms.get(atom);
+        if (!it.has_value())
+            return NULL;
+        return strdup(it->string.characters());
+    }
+
+    return strdup((char*)atom);
+}
+
+extern "C" Status
+XLib::XGetAtomNames(Display* dpy, Atom* atoms, int count, char** names_return)
+{
+    for (int i = 0; i < count; i++)
+        names_return[i] = XGetAtomName(dpy, atoms[i]);
+    return Success;
+}
