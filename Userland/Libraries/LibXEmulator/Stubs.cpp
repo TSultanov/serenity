@@ -648,5 +648,13 @@ XGetWindowProperty(Display* dpy, Window w, Atom property,
     return Success;
 }
 
+extern "C" Window
+XGetSelectionOwner(Display* display, Atom selection)
+{
+    UNIMPLEMENTED();
+    return None;
+}
+
+
 }
 #pragma GCC diagnostic pop

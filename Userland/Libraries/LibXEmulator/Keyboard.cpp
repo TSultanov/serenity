@@ -19,12 +19,168 @@ extern "C" {
 
 using namespace XLib;
 
-extern "C" KeyCode
-XKeysymToKeycode(Display* display, KeySym keysym)
+extern "C" int
+XLookupString(XKeyEvent* key_event, char* buffer_return, int bytes_buffer,
+    KeySym* keysym_return, XComposeStatus* status_in_out)
 {
     UNIMPLEMENTED();
     return 0;
 }
+
+extern "C" KeySym
+XkbKeycodeToKeysym(Display* dpy, unsigned int kc, int group, int level)
+{
+    UNIMPLEMENTED();
+    return 0;
+}
+
+extern "C" Bool
+XkbLookupKeySym(Display* dpy, KeyCode keycode,
+    unsigned int modifiers, unsigned int* modifiers_return, KeySym* keysym_return)
+{
+    UNIMPLEMENTED();
+    return (*keysym_return != NoSymbol);
+}
+
+extern "C" unsigned int
+XkbKeysymToModifiers(Display* dpy, KeySym ks)
+{
+    switch (ks) {
+    case XK_Shift_L:
+    case XK_Shift_R:
+        return ShiftMask;
+
+    case XK_Caps_Lock:
+        return LockMask;
+
+    case XK_Control_L:
+    case XK_Control_R:
+        return ControlMask;
+
+    case XK_Alt_L:
+        return Mod1Mask;
+    case XK_Alt_R:
+        return Mod4Mask;
+
+    case XK_Num_Lock:
+        return Mod2Mask;
+
+    case XK_Scroll_Lock:
+        return Mod3Mask;
+    }
+    return 0;
+}
+
+extern "C" XModifierKeymap*
+XGetModifierMapping(Display* display)
+{
+    XModifierKeymap* map = (XModifierKeymap*)calloc(sizeof(XModifierKeymap), 1);
+    UNIMPLEMENTED();
+    return map;
+}
+
+extern "C" int
+XFreeModifiermap(XModifierKeymap *modmap)
+{
+    free(modmap->modifiermap);
+    free(modmap);
+    return Success;
+}
+
+extern "C" XkbDescPtr
+XkbGetMap(Display* display, unsigned int which, unsigned int device_spec)
+{
+    XkbDescPtr desc = (XkbDescPtr)calloc(sizeof(XkbDescRec), 1);
+    desc->device_spec = device_spec;
+    if (XkbGetUpdatedMap(display, which, desc) != Success) {
+        XkbFreeKeyboard(desc, 0, True);
+        return NULL;
+    }
+    return desc;
+}
+
+extern "C" Status
+XkbGetUpdatedMap(Display* display, unsigned int which, XkbDescPtr xkb)
+{
+    xkb->min_key_code = 1;
+    xkb->max_key_code = 0;
+    // We do not actually fill anything in here, but leave it all zeros.
+    return Success;
+}
+
+extern "C" Status
+XkbGetNames(Display* dpy, unsigned int which, XkbDescPtr xkb)
+{
+    // We do not actually fill anything in here, but leave it all zeros.
+    return Success;
+}
+
+extern "C" void
+XkbFreeKeyboard(XkbDescPtr xkb, unsigned int which, Bool freeDesc)
+{
+    if (!xkb)
+        return;
+    // We never actually fill in any of the structures.
+    if (freeDesc)
+        free(xkb);
+}
+
+extern "C" KeySym
+XStringToKeysym(const char* string)
+{
+    UNIMPLEMENTED();
+    return NoSymbol;
+}
+
+extern "C" char*
+XKeysymToString(KeySym keysym)
+{
+    UNIMPLEMENTED();
+    return NULL;
+}
+
+// #pragma mark - minor functions
+
+extern "C" Bool
+XkbTranslateKeyCode(XkbDescPtr xkb, KeyCode key, unsigned int mods,
+    unsigned int* mods_rtrn, KeySym* keysym_rtrn)
+{
+    return XkbLookupKeySym(NULL, key, mods, mods_rtrn, keysym_rtrn);
+}
+
+extern "C" KeySym
+XKeycodeToKeysym(Display* dpy, unsigned int kc, int index)
+{
+    return XkbKeycodeToKeysym(dpy, kc, 0, 0);
+}
+
+extern "C" KeySym
+XLookupKeysym(XKeyEvent* key_event, int index)
+{
+    return XkbKeycodeToKeysym(key_event->display, key_event->keycode, 0, 0);
+}
+
+extern "C" Display*
+XkbOpenDisplay(char *display_name, int *event_rtrn, int *error_rtrn,
+    int *major_in_out, int *minor_in_out, int *reason_rtrn)
+{
+    return XOpenDisplay(display_name);
+}
+
+extern "C" Bool
+XkbLibraryVersion(int *lib_major_in_out, int *lib_minor_in_out)
+{
+    return True;
+}
+
+extern "C" Bool
+XkbQueryExtension(Display *dpy, int *opcode_rtrn, int *event_rtrn,
+    int *error_rtrn, int *major_in_out, int *minor_in_out)
+{
+    return True;
+}
+
+// #pragma mark - stubs
 
 extern "C" Bool
 XkbUseExtension(Display* dpy, int* major_rtrn, int* minor_rtrn)
@@ -171,15 +327,6 @@ XUngrabKeyboard(Display *display, XLib::Time time)
 {
     UNIMPLEMENTED();
     return Success;
-}
-
-
-extern "C" int
-XLookupString(XKeyEvent* key_event, char* buffer_return, int bytes_buffer,
-    KeySym* keysym_return, XComposeStatus* status_in_out)
-{
-    UNIMPLEMENTED();
-    return 0;
 }
 
 #pragma GCC diagnostic pop
