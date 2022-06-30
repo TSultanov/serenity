@@ -691,5 +691,14 @@ XmbTextPropertyToTextList(Display* display, const XTextProperty* text_prop,
     UNIMPLEMENTED();
     return BadAlloc;
 }
+
+extern "C" Atom*
+XLib::XListProperties(Display* dpy, Window w,
+    int* num_prop_return)
+{
+    UNIMPLEMENTED();
+    *num_prop_return = 0;
+    return NULL;
+}
 }
 #pragma GCC diagnostic pop
