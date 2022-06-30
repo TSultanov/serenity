@@ -341,5 +341,53 @@ XClearWindow(Display *display, Window w)
     return Success;
 }
 
+extern "C" Status
+XReconfigureWMWindow(Display* display, Window w, int screen_number,
+    unsigned int value_mask, XWindowChanges* values)
+{
+    return XConfigureWindow(display, w, value_mask, values);
+}
+
+extern "C" int
+XMoveWindow(Display* display, Window window, int x, int y)
+{
+    XWindowChanges changes;
+    changes.x = x;
+    changes.y = y;
+    return XConfigureWindow(display, window, CWX | CWY, &changes);
+}
+
+extern "C" int
+XResizeWindow(Display* display, Window window, unsigned int width, unsigned int height)
+{
+    XWindowChanges changes;
+    changes.width = width;
+    changes.height = height;
+    return XConfigureWindow(display, window, CWWidth | CWHeight, &changes);
+}
+
+extern "C" int
+XRaiseWindow(Display* display, Window w)
+{
+    XWindowChanges changes;
+    changes.stack_mode = Above;
+    return XConfigureWindow(display, w, CWStackMode, &changes);
+}
+
+extern "C" int
+XLowerWindow(Display* display, Window w)
+{
+    XWindowChanges changes;
+    changes.stack_mode = Below;
+    return XConfigureWindow(display, w, CWStackMode, &changes);
+}
+
+extern "C" int
+XQueryTree(Display* display, Window w, Window* root_return,
+    Window* parent_return, Window** children_return, unsigned int* nchildren_return)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
 
 #pragma GCC diagnostic pop
