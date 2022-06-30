@@ -7,3 +7,5 @@ use_fresh_config_sub="true"
 files="https://download.gnome.org/sources/gtk+/3.24/gtk%2B-${version}.tar.xz gtk+-${version}.tar.xz"
 configopts=("--with-sysroot=${SERENITY_INSTALL_ROOT}")
 depends=("cairo" "fontconfig" "atk" "pango" "gdk-pixbuf")
+
+export LDFLAGS="-lcore -lgui -lgfx"
