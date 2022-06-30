@@ -164,7 +164,14 @@ XGrabPointer(Display* display, Window grab_w, Bool owner_events, unsigned int ev
     int pointer_mode, int keyboard_mode, Window confine_to_w, Cursor cursor, XLib::Time time)
 {
     UNIMPLEMENTED();
-    return Success;
+    return GrabSuccess;
+}
+
+extern "C" int
+XUngrabPointer(Display* display, XLib::Time time)
+{
+    UNIMPLEMENTED();
+    return GrabSuccess;
 }
 
 #pragma GCC diagnostic pop
