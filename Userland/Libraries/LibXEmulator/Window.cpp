@@ -179,6 +179,99 @@ XLib::XSetInputFocus(Display* /*display*/, Window focus, int /*revert_to*/, Time
     return Success;
 }
 
+extern "C" Status
+XLib::XGetGeometry(Display* display, Drawable d, Window* root_return,
+    int* x_return, int* y_return, unsigned int* width_return,
+    unsigned int* height_return, unsigned int* border_width_return,
+    unsigned int* depth_return)
+{
+    XWindowAttributes window_attributes;
+    Status status = XGetWindowAttributes(display, d, &window_attributes);
+    if (status != 1)
+        return status;
+    if (root_return)
+        *root_return = window_attributes.root;
+    if (x_return)
+        *x_return = window_attributes.x;
+    if (y_return)
+        *y_return = window_attributes.y;
+    if (width_return)
+        *width_return = window_attributes.width;
+    if (height_return)
+        *height_return = window_attributes.height;
+    if (border_width_return)
+        *border_width_return = window_attributes.border_width;
+    if (depth_return)
+        *depth_return = window_attributes.depth;
+    return 1;
+}
+
+extern "C" int
+XLib::XWithdrawWindow(Display *display, Window w, int /*screen*/)
+{
+    XUnmapWindow(display, w);
+    return 1;
+}
+
+extern "C" int
+XLib::XUnmapWindow(Display *display, Window w)
+{
+    auto window = ObjectManager::the().get_window(w);
+    if (!window)
+        return BadWindow;
+
+    window->widget()->window()->hide();
+
+    XWindow* parent = window->parent_window();
+const bool selfNotify = (window->event_mask() & StructureNotifyMask);
+    if (selfNotify || (parent && parent->event_mask() & SubstructureNotifyMask)) {
+        XEvent event = {};
+        event.type = UnmapNotify;
+        event.xunmap.event = selfNotify ? window->id() : parent->id();
+        event.xunmap.window = window->id();
+        _x_put_event(display, event);
+    }
+
+    return Success;
+}
+
+extern "C" int
+XLib::XGetWindowAttributes(Display* display, Window w,
+    XWindowAttributes* window_attributes_return)
+{
+    auto window = ObjectManager::the().get_window(w);
+    if (window.is_null())
+        return 0;
+
+    memset(window_attributes_return, 0, sizeof(XWindowAttributes));
+
+    window_attributes_return->root = DefaultRootWindow(display);
+    window_attributes_return->screen = &display->screens[0];
+    // TODO: Not necessarily correct for pixmaps!
+    window_attributes_return->visual = window_attributes_return->screen->root_visual;
+    window_attributes_return->c_class = window_attributes_return->visual->c_class;
+    window_attributes_return->depth = window_attributes_return->screen->depths[0].depth;
+
+    Gfx::IntRect frame;
+    bool hidden = true, minimized = false;
+    frame = window->widget()->window()->rect();
+    hidden = !window->widget()->window()->is_visible();
+    //minimized = window->widget()->window()->mini;
+    minimized = false;
+
+    window_attributes_return->x = frame.top_left().x();
+    window_attributes_return->y = frame.top_left().y();
+    window_attributes_return->width = frame.width();
+    window_attributes_return->height = frame.height();
+    window_attributes_return->border_width = 1;
+    window_attributes_return->your_event_mask = window->event_mask();
+    window_attributes_return->all_event_masks = window->event_mask();
+    window_attributes_return->map_state =
+        minimized ? IsUnviewable : (hidden ? IsUnmapped : IsViewable);
+
+    return 1;
+}
+
 // stubs
 #define UNIMPLEMENTED() dbgln("Stub: {}", __func__)
 
@@ -397,5 +490,26 @@ XConfigureWindow(Display* display, Window w, unsigned int value_mask, XWindowCha
     return Success;
 }
 
+
+extern "C" int
+XLib::XIconifyWindow(Display *display, Window w, int screen)
+{
+    UNIMPLEMENTED();
+    return BadValue;
+}
+
+extern "C" int
+XSetTransientForHint(Display* display, Window w, Window prop_w)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
+
+extern "C" int
+XReparentWindow(Display* dpy, Window w, Window nP, int x, int y)
+{
+    UNIMPLEMENTED();
+    return Success;
+}
 
 #pragma GCC diagnostic pop
