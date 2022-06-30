@@ -19,6 +19,13 @@ extern "C" {
 
 using namespace XLib;
 
+extern "C" KeyCode
+XKeysymToKeycode(Display* display, KeySym keysym)
+{
+    UNIMPLEMENTED();
+    return (KeyCode)0;
+}
+
 extern "C" int
 XLookupString(XKeyEvent* key_event, char* buffer_return, int bytes_buffer,
     KeySym* keysym_return, XComposeStatus* status_in_out)
