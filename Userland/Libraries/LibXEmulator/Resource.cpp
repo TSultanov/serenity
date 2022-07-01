@@ -30,7 +30,7 @@ static AK::HashMap<AK::String, XrmQuark> sStringsToQuarks;
 static XrmQuark sLastQuark = 1;
 
 extern "C" XrmQuark
-XrmUniqueQuark()
+XLib::XrmUniqueQuark()
 {
    pthread_rwlock_wrlock(&sQuarksLock);
    AK::ScopeGuard([]() { pthread_rwlock_unlock(&sQuarksLock); });
@@ -38,7 +38,7 @@ XrmUniqueQuark()
 }
 
 extern "C" XrmString
-XrmQuarkToString(XrmQuark quark)
+XLib::XrmQuarkToString(XrmQuark quark)
 {
    pthread_rwlock_rdlock(&sQuarksLock);
    AK::ScopeGuard([]() { pthread_rwlock_unlock(&sQuarksLock); });
@@ -51,7 +51,7 @@ XrmQuarkToString(XrmQuark quark)
 }
 
 extern "C" XrmQuark
-_XrmInternalStringToQuark(const char* name, int len, Signature /*sig*/, Bool /*permstring*/)
+XLib::_XrmInternalStringToQuark(const char* name, int len, Signature /*sig*/, Bool /*permstring*/)
 {
    if (!name)
        return 0;
@@ -74,19 +74,19 @@ _XrmInternalStringToQuark(const char* name, int len, Signature /*sig*/, Bool /*p
 }
 
 extern "C" XrmQuark
-XrmStringToQuark(const char* string)
+XLib::XrmStringToQuark(const char* string)
 {
    return _XrmInternalStringToQuark(string, -1, -1, False);
 }
 
 extern "C" XrmQuark
-XrmPermStringToQuark(const char* string)
+XLib::XrmPermStringToQuark(const char* string)
 {
    return _XrmInternalStringToQuark(string, -1, -1, True);
 }
 
 extern "C" XrmMethods
-_XrmInitParseInfo(XPointer* /*state*/)
+XLib::_XrmInitParseInfo(XPointer* /*state*/)
 {
    return NULL;
 }

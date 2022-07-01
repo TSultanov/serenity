@@ -21,19 +21,19 @@ using namespace XLib;
 
 extern "C" {
 
-int XGrabServer(Display* display)
+int XLib::XGrabServer(Display* display)
 {
     // Not needed.
     return Success;
 }
 
-int XUngrabServer(Display* display)
+int XLib::XUngrabServer(Display* display)
 {
     // Not needed.
     return Success;
 }
 
-int XChangePointerControl(Display* dpy,
+int XLib::XChangePointerControl(Display* dpy,
     Bool do_acc, Bool do_thresh, int acc_numerator, int acc_denominator, int threshold)
 {
     UNIMPLEMENTED();
@@ -41,61 +41,61 @@ int XChangePointerControl(Display* dpy,
 }
 
 XTimeCoord*
-XGetMotionEvents(Display* display, Window w, XLib::Time start, XLib::Time stop, int* nevents_return)
+XLib::XGetMotionEvents(Display* display, Window w, XLib::Time start, XLib::Time stop, int* nevents_return)
 {
     UNIMPLEMENTED();
     *nevents_return = 0;
     return NULL;
 }
 
-int XAllowEvents(Display* display, int event_mode, XLib::Time time)
+int XLib::XAllowEvents(Display* display, int event_mode, XLib::Time time)
 {
     // We never freeze events, so we have nothing to unfreeze.
     return Success;
 }
 
 Status
-XAddConnectionWatch(Display* display, XConnectionWatchProc procedure, XPointer client_data)
+XLib::XAddConnectionWatch(Display* display, XConnectionWatchProc procedure, XPointer client_data)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-void XRemoveConnectionWatch(Display* display, XConnectionWatchProc procedure, XPointer client_data)
+void XLib::XRemoveConnectionWatch(Display* display, XConnectionWatchProc procedure, XPointer client_data)
 {
     UNIMPLEMENTED();
 }
 
-void XProcessInternalConnection(Display* display, int fd)
+void XLib::XProcessInternalConnection(Display* display, int fd)
 {
     UNIMPLEMENTED();
 }
 
 XHostAddress*
-XListHosts(Display* display, int* nhosts_return, Bool* state_return)
+XLib::XListHosts(Display* display, int* nhosts_return, Bool* state_return)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-void XSetWMClientMachine(Display* display, Window w, XTextProperty* text_prop)
+void XLib::XSetWMClientMachine(Display* display, Window w, XTextProperty* text_prop)
 {
     UNIMPLEMENTED();
 }
 
-void XSetWMSizeHints(Display* display, Window w, XSizeHints* hints, Atom property)
+void XLib::XSetWMSizeHints(Display* display, Window w, XSizeHints* hints, Atom property)
 {
     UNIMPLEMENTED();
 }
 
 XWMHints*
-XGetWMHints(Display* display, Window w)
+XLib::XGetWMHints(Display* display, Window w)
 {
     return NULL;
 }
 
 Status
-XGetTransientForHint(Display* display, Window w, Window* prop_window_return)
+XLib::XGetTransientForHint(Display* display, Window w, Window* prop_window_return)
 {
     *prop_window_return = None;
     UNIMPLEMENTED();
@@ -103,20 +103,20 @@ XGetTransientForHint(Display* display, Window w, Window* prop_window_return)
 }
 
 Colormap*
-XListInstalledColormaps(Display* display, Window w, int* num_return)
+XLib::XListInstalledColormaps(Display* display, Window w, int* num_return)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-int XSetWindowColormap(Display* display, Window w, Colormap colormap)
+int XLib::XSetWindowColormap(Display* display, Window w, Colormap colormap)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 Status
-XGetWMColormapWindows(Display* display, Window w, Window** windows_return,
+XLib::XGetWMColormapWindows(Display* display, Window w, Window** windows_return,
     int* count_return)
 {
     UNIMPLEMENTED();
@@ -124,130 +124,130 @@ XGetWMColormapWindows(Display* display, Window w, Window** windows_return,
 }
 
 Status
-XSetWMColormapWindows(Display* display, Window w,
+XLib::XSetWMColormapWindows(Display* display, Window w,
     Window* colormap_windows, int count)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
-int XSetWMHints(Display* display, Window w, XWMHints* wm_hints)
+int XLib::XSetWMHints(Display* display, Window w, XWMHints* wm_hints)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
-int XRefreshKeyboardMapping(XMappingEvent* event_map)
+int XLib::XRefreshKeyboardMapping(XMappingEvent* event_map)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
 VisualID
-XVisualIDFromVisual(Visual* visual)
+XLib::XVisualIDFromVisual(Visual* visual)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
-int XSetClassHint(Display* display, Window w, XClassHint* class_hints)
+int XLib::XSetClassHint(Display* display, Window w, XClassHint* class_hints)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
-int XGetClassHint(Display* display, Window w, XClassHint* class_hints_return)
+int XLib::XGetClassHint(Display* display, Window w, XClassHint* class_hints_return)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XSetStipple(Display* display, GC gc, Pixmap stipple)
+int XLib::XSetStipple(Display* display, GC gc, Pixmap stipple)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XSetTile(Display* display, GC gc, Pixmap tile)
+int XLib::XSetTile(Display* display, GC gc, Pixmap tile)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XSetPlaneMask(Display* display, GC gc, Pixmap planeMask)
+int XLib::XSetPlaneMask(Display* display, GC gc, Pixmap planeMask)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XSetTSOrigin(Display* display, GC gc, int x, int y)
+int XLib::XSetTSOrigin(Display* display, GC gc, int x, int y)
 {
     return BadImplementation;
 }
 
-int XSetIconName(Display* display, Window w, const char * icon_name)
+int XLib::XSetIconName(Display* display, Window w, const char * icon_name)
 {
     return BadImplementation;
 }
 
-void XSetWMIconName(Display* display, Window w, XTextProperty* icon_name)
+void XLib::XSetWMIconName(Display* display, Window w, XTextProperty* icon_name)
 {
 }
 
-int XGetWMIconName(Display* display, Window w, XTextProperty* icon_name_return)
+int XLib::XGetWMIconName(Display* display, Window w, XTextProperty* icon_name_return)
 {
     return BadImplementation;
 }
 
-int XGetWMClientMachine(Display* display, Window w, XTextProperty* client_machine_return)
+int XLib::XGetWMClientMachine(Display* display, Window w, XTextProperty* client_machine_return)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XSetIconSizes(Display* display, Window w, XIconSize* size_list, int count)
+int XLib::XSetIconSizes(Display* display, Window w, XIconSize* size_list, int count)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int (*XSynchronize(Display*, Bool))(Display*)
+int (*XLib::XSynchronize(Display*, Bool))(Display*)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-int XSetCommand(Display* display, Window w, char** argv, int argc)
+int XLib::XSetCommand(Display* display, Window w, char** argv, int argc)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
 XErrorHandler
-XSetErrorHandler(XErrorHandler handler)
+XLib::XSetErrorHandler(XErrorHandler handler)
 {
     return NULL;
 }
 
 XIOErrorHandler
-XSetIOErrorHandler(XIOErrorHandler handler)
+XLib::XSetIOErrorHandler(XIOErrorHandler handler)
 {
     return NULL;
 }
 
-int XResetScreenSaver(Display* display)
+int XLib::XResetScreenSaver(Display* display)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XForceScreenSaver(Display* display, int)
+int XLib::XForceScreenSaver(Display* display, int)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XGetScreenSaver(Display* display, int* timeout_return, int* interval_return, int* prefer_blanking_return,
+int XLib::XGetScreenSaver(Display* display, int* timeout_return, int* interval_return, int* prefer_blanking_return,
     int* allow_exposures_return)
 {
     UNIMPLEMENTED();
@@ -258,25 +258,25 @@ int XGetScreenSaver(Display* display, int* timeout_return, int* interval_return,
     return BadImplementation;
 }
 
-int XSetScreenSaver(Display* display, int timeout, int interval, int prefer_blanking, int allow_exposures)
+int XLib::XSetScreenSaver(Display* display, int timeout, int interval, int prefer_blanking, int allow_exposures)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XSetWindowBorderPixmap(Display* display, Window w, Pixmap border_pixmap)
+int XLib::XSetWindowBorderPixmap(Display* display, Window w, Pixmap border_pixmap)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XSetWindowBackgroundPixmap(Display* display, Window w, Pixmap background_pixmap)
+int XLib::XSetWindowBackgroundPixmap(Display* display, Window w, Pixmap background_pixmap)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XWarpPointer(Display* display, Window src_w, Window dest_w,
+int XLib::XWarpPointer(Display* display, Window src_w, Window dest_w,
     int src_x, int src_y, unsigned int src_width,
     unsigned int src_height, int dest_x, int dest_y)
 {
@@ -284,20 +284,20 @@ int XWarpPointer(Display* display, Window src_w, Window dest_w,
     return BadImplementation;
 }
 
-int XGetPointerControl(Display* display,
+int XLib::XGetPointerControl(Display* display,
     int* accel_numerator_return, int* accel_denominator_return, int* threshold_return)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-char* XSetLocaleModifiers(const char * modifier_list)
+char* XLib::XSetLocaleModifiers(const char * modifier_list)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-int XGetErrorDatabaseText(Display* dpy, const char* name,
+int XLib::XGetErrorDatabaseText(Display* dpy, const char* name,
 	const char* message, const char* default_string, char* buffer_return, int length)
 {
     UNIMPLEMENTED();
@@ -305,148 +305,148 @@ int XGetErrorDatabaseText(Display* dpy, const char* name,
     return 0;
 }
 
-int XGetErrorText(Display* dpy, int code, char* buffer_return, int length)
+int XLib::XGetErrorText(Display* dpy, int code, char* buffer_return, int length)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-char* XGetDefault(Display* display, const char* program, const char* option)
+char* XLib::XGetDefault(Display* display, const char* program, const char* option)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-int XGrabButton(Display* display, unsigned int button, unsigned int modifiers, Window grab_window,
+int XLib::XGrabButton(Display* display, unsigned int button, unsigned int modifiers, Window grab_window,
     Bool owner_events, unsigned int event_mask, int pointer_mode, int keyboard_mode, Window confine_to, Cursor cursor)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XUngrabButton(Display* display, unsigned int button, unsigned int modifiers, Window grab_window)
+int XLib::XUngrabButton(Display* display, unsigned int button, unsigned int modifiers, Window grab_window)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 Status
-XGetRGBColormaps(Display* display, Window w, XStandardColormap** std_colormap_return, int* count_return, Atom property)
+XLib::XGetRGBColormaps(Display* display, Window w, XStandardColormap** std_colormap_return, int* count_return, Atom property)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-void XSetRGBColormaps(Display* display, Window w, XStandardColormap* std_colormap, int count, Atom property)
+void XLib::XSetRGBColormaps(Display* display, Window w, XStandardColormap* std_colormap, int count, Atom property)
 {
     UNIMPLEMENTED();
 }
 
-int XKillClient(Display* display, XID resource)
+int XLib::XKillClient(Display* display, XID resource)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XSetCloseDownMode(Display* display, int close_mode)
+int XLib::XSetCloseDownMode(Display* display, int close_mode)
 {
     return BadImplementation;
 }
 
 GContext
-XGContextFromGC(GC gc)
+XLib::XGContextFromGC(GC gc)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
-int XStoreBytes(Display* display, const char * bytes, int nbytes)
+int XLib::XStoreBytes(Display* display, const char * bytes, int nbytes)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XStoreBuffer(Display* display, const char * bytes, int nbytes, int buffer)
+int XLib::XStoreBuffer(Display* display, const char * bytes, int nbytes, int buffer)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-char* XFetchBytes(Display* display, int* nbytes_return)
+char* XLib::XFetchBytes(Display* display, int* nbytes_return)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-char* XFetchBuffer(Display* display, int* nbytes_return, int buffer)
+char* XLib::XFetchBuffer(Display* display, int* nbytes_return, int buffer)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-int XRotateBuffers(Display* display, int rotate)
+int XLib::XRotateBuffers(Display* display, int rotate)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-XOM XOMOfOC(XOC oc)
+XOM XLib::XOMOfOC(XOC oc)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-char* XSetOCValues(XOC oc, ...)
+char* XLib::XSetOCValues(XOC oc, ...)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-char* XGetOCValues(XOC oc, ...)
+char* XLib::XGetOCValues(XOC oc, ...)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-char* XGetOMValues(XOM om, ...)
+char* XLib::XGetOMValues(XOM om, ...)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
-int XChangeSaveSet(Display* display, Window w, int change_mode)
+int XLib::XChangeSaveSet(Display* display, Window w, int change_mode)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XAddToSaveSet(Display* display, Window w)
+int XLib::XAddToSaveSet(Display* display, Window w)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XRemoveFromSaveSet(Display* display, Window w)
+int XLib::XRemoveFromSaveSet(Display* display, Window w)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
-int XGetPointerMapping(Display* display, unsigned char* map_return, int nmap)
+int XLib::XGetPointerMapping(Display* display, unsigned char* map_return, int nmap)
 {
     UNIMPLEMENTED();
     // Assume we have 3 buttons for now?
     return 3;
 }
 
-int XRestackWindows(Display* display, Window windows[], int nwindows)
+int XLib::XRestackWindows(Display* display, Window windows[], int nwindows)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 extern "C" int
-XBell(Display* dpy, int percent)
+XLib::XBell(Display* dpy, int percent)
 {
     UNIMPLEMENTED();
     return 0;
@@ -454,7 +454,7 @@ XBell(Display* dpy, int percent)
 
 
 extern "C" XIM
-XOpenIM(Display* dpy,
+XLib::XOpenIM(Display* dpy,
     struct _XrmHashBucketRec* rdb, char* res_name, char* res_class)
 {
     UNIMPLEMENTED();
@@ -462,35 +462,35 @@ XOpenIM(Display* dpy,
 }
 
 extern "C" Display*
-XDisplayOfIM(XIM im)
+XLib::XDisplayOfIM(XIM im)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" char*
-XLocaleOfIM(XIM im)
+XLib::XLocaleOfIM(XIM im)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" char*
-XGetIMValues(XIM im, ...)
+XLib::XGetIMValues(XIM im, ...)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" char*
-XSetIMValues(XIM im, ...)
+XLib::XSetIMValues(XIM im, ...)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" Bool
-XRegisterIMInstantiateCallback(Display* dpy,
+XLib::XRegisterIMInstantiateCallback(Display* dpy,
     struct _XrmHashBucketRec* rdb, char* res_name, char* res_class,
     XIDProc callback, XPointer client_data)
 {
@@ -499,7 +499,7 @@ XRegisterIMInstantiateCallback(Display* dpy,
 }
 
 extern "C" Bool
-XUnregisterIMInstantiateCallback(Display* dpy,
+XLib::XUnregisterIMInstantiateCallback(Display* dpy,
     struct _XrmHashBucketRec* rdb, char* res_name, char* res_class,
     XIDProc callback, XPointer client_data)
 {
@@ -508,14 +508,14 @@ XUnregisterIMInstantiateCallback(Display* dpy,
 }
 
 extern "C" Status
-XCloseIM(XIM xim)
+XLib::XCloseIM(XIM xim)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
 extern "C" XIC
-XCreateIC(XIM xim, ...)
+XLib::XCreateIC(XIM xim, ...)
 {
     UNIMPLEMENTED();
     // Unimplemented.
@@ -523,60 +523,60 @@ XCreateIC(XIM xim, ...)
 }
 
 extern "C" XIM
-XIMOfIC(XIC ic)
+XLib::XIMOfIC(XIC ic)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" char*
-XmbResetIC(XIC ic)
+XLib::XmbResetIC(XIC ic)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" void
-XDestroyIC(XIC ic)
+XLib::XDestroyIC(XIC ic)
 {
     UNIMPLEMENTED();
 }
 
 extern "C" char*
-XSetICValues(XIC ic, ...)
+XLib::XSetICValues(XIC ic, ...)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" char*
-XGetICValues(XIC ic, ...)
+XLib::XGetICValues(XIC ic, ...)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" void
-XSetICFocus(XIC ic)
+XLib::XSetICFocus(XIC ic)
 {
     UNIMPLEMENTED();
 }
 
 extern "C" void
-XUnsetICFocus(XIC ic)
+XLib::XUnsetICFocus(XIC ic)
 {
     UNIMPLEMENTED();
 }
 
 extern "C" Bool
-XFilterEvent(XEvent *event, Window window)
+XLib::XFilterEvent(XEvent *event, Window window)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
 extern "C" int
-Xutf8LookupString(XIC ic, XKeyPressedEvent* event,
+XLib::Xutf8LookupString(XIC ic, XKeyPressedEvent* event,
     char* buffer_return, int bytes_buffer, KeySym* keysym_return, Status* status_return)
 {
     UNIMPLEMENTED();
@@ -584,14 +584,14 @@ Xutf8LookupString(XIC ic, XKeyPressedEvent* event,
 }
 
 extern "C" XVaNestedList
-XVaCreateNestedList(int dummy, ...)
+XLib::XVaCreateNestedList(int dummy, ...)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" Bool
-XCheckIfEvent(Display* display, XEvent* event_return,
+XLib::XCheckIfEvent(Display* display, XEvent* event_return,
     Bool (*predicate)(Display*, XEvent*, XPointer), XPointer arg)
 {
     UNIMPLEMENTED();
@@ -599,7 +599,7 @@ XCheckIfEvent(Display* display, XEvent* event_return,
 }
 
 extern "C" int
-XConvertSelection(Display* display, Atom selection, Atom target,
+XLib::XConvertSelection(Display* display, Atom selection, Atom target,
     Atom property, Window requestor, XLib::Time time)
 {
     UNIMPLEMENTED();
@@ -607,7 +607,7 @@ XConvertSelection(Display* display, Atom selection, Atom target,
 }
 
 extern "C" void
-XmbSetWMProperties(Display* display, Window w,
+XLib::XmbSetWMProperties(Display* display, Window w,
 	const char* window_name, const char* icon_name, char** argv, int argc,
     XSizeHints* normal_hints, XWMHints* wm_hints, XClassHint* class_hints)
 {
@@ -615,7 +615,7 @@ XmbSetWMProperties(Display* display, Window w,
 }
 
 extern "C" Bool
-XQueryPointer(Display *display, Window w, Window* root_return,
+XLib::XQueryPointer(Display *display, Window w, Window* root_return,
     Window* child_return, int* root_x_return, int* root_y_return,
     int* win_x_return, int *win_y_return,
     unsigned int* mask_return)
@@ -625,14 +625,14 @@ XQueryPointer(Display *display, Window w, Window* root_return,
 }
 
 extern "C" int
-XDefineCursor(Display *display, Window w, Cursor cursor)
+XLib::XDefineCursor(Display *display, Window w, Cursor cursor)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" int
-XGetWindowProperty(Display* dpy, Window w, Atom property,
+XLib::XGetWindowProperty(Display* dpy, Window w, Atom property,
     long long_offset, long long_length, Bool del, Atom req_type,
     Atom* actual_type_return, int* actual_format_return,
     unsigned long* nitems_return, unsigned long* bytes_after_return, unsigned char** prop_return)
@@ -649,14 +649,14 @@ XGetWindowProperty(Display* dpy, Window w, Atom property,
 }
 
 extern "C" Window
-XGetSelectionOwner(Display* display, Atom selection)
+XLib::XGetSelectionOwner(Display* display, Atom selection)
 {
     UNIMPLEMENTED();
     return None;
 }
 
 extern "C" Bool
-XIfEvent(Display* display, XEvent* event_return,
+XLib::XIfEvent(Display* display, XEvent* event_return,
     Bool (*predicate)(Display*, XEvent*, XPointer), XPointer arg)
 {
     UNIMPLEMENTED();
@@ -664,28 +664,28 @@ XIfEvent(Display* display, XEvent* event_return,
 }
 
 extern "C" Status
-XFreeColormap(Display* display, Colormap colormap)
+XLib::XFreeColormap(Display* display, Colormap colormap)
 {
     return Success;
 }
 
 extern "C" int
-XSetSelectionOwner(Display* display, Atom selection, Window owner, XLib::Time time)
+XLib::XSetSelectionOwner(Display* display, Atom selection, Window owner, XLib::Time time)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 extern "C" int
-XmbTextListToTextProperty(Display* display, char** list, int count, XICCEncodingStyle style,
+XLib::XmbTextListToTextProperty(Display* display, char** list, int count, XICCEncodingStyle style,
     XTextProperty* text_prop_return)
 {
     UNIMPLEMENTED();
-    return NULL;
+    return 0;
 }
 
 extern "C" Status
-XmbTextPropertyToTextList(Display* display, const XTextProperty* text_prop,
+XLib::XmbTextPropertyToTextList(Display* display, const XTextProperty* text_prop,
     char*** list_return, int* count_return)
 {
     UNIMPLEMENTED();

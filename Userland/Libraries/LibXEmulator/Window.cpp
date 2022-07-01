@@ -279,10 +279,8 @@ XLib::XGetWindowAttributes(Display* display, Window w,
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wunused-result"
 
-using namespace XLib;
-
 extern "C" int
-XGrabPointer(Display* display, Window grab_w, Bool owner_events, unsigned int event_mask,
+XLib::XGrabPointer(Display* display, Window grab_w, Bool owner_events, unsigned int event_mask,
     int pointer_mode, int keyboard_mode, Window confine_to_w, Cursor cursor, XLib::Time time)
 {
     UNIMPLEMENTED();
@@ -290,14 +288,14 @@ XGrabPointer(Display* display, Window grab_w, Bool owner_events, unsigned int ev
 }
 
 extern "C" int
-XUngrabPointer(Display* display, XLib::Time time)
+XLib::XUngrabPointer(Display* display, XLib::Time time)
 {
     UNIMPLEMENTED();
     return GrabSuccess;
 }
 
 extern "C" int
-XMoveResizeWindow(Display *display, Window w,
+XLib::XMoveResizeWindow(Display *display, Window w,
     int x, int y, unsigned int width, unsigned int height)
 {
     UNIMPLEMENTED();
@@ -315,48 +313,48 @@ XLib::XTranslateCoordinates(Display* display,
 }
 
 
-extern "C" XSizeHints*
-XAllocSizeHints()
+extern "C" XLib::XSizeHints*
+XLib::XAllocSizeHints()
 {
     return (XSizeHints*)malloc(sizeof(XSizeHints));
 }
 
 extern "C" int
-XGetNormalHints(Display* display, Window w, XSizeHints* hints)
+XLib::XGetNormalHints(Display* display, Window w, XSizeHints* hints)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" int
-XSetNormalHints(Display* display, Window w, XSizeHints* hints)
+XLib::XSetNormalHints(Display* display, Window w, XSizeHints* hints)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" Status
-XSetWMProtocols(Display* display, Window w, Atom* protocols, int count)
+XLib::XSetWMProtocols(Display* display, Window w, Atom* protocols, int count)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" Status
-XGetWMNormalHints(Display* display, Window w, XSizeHints* hints_return, long* supplied_return)
+XLib::XGetWMNormalHints(Display* display, Window w, XSizeHints* hints_return, long* supplied_return)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
 extern "C" void
-XSetWMNormalHints(Display* display, Window w, XSizeHints* hints)
+XLib::XSetWMNormalHints(Display* display, Window w, XSizeHints* hints)
 {
     XSetNormalHints(display, w, hints);
 }
 
 extern "C" int
-XSetStandardProperties(Display* display, Window w,
+XLib::XSetStandardProperties(Display* display, Window w,
 	const char* window_name, const char* icon_name, Pixmap icon_pixmap,
     char** argv, int argc, XSizeHints* hints)
 {
@@ -365,7 +363,7 @@ XSetStandardProperties(Display* display, Window w,
 }
 
 extern "C" void
-XSetWMProperties(Display* display, Window w, XTextProperty* window_name, XTextProperty* icon_name,
+XLib::XSetWMProperties(Display* display, Window w, XTextProperty* window_name, XTextProperty* icon_name,
     char** argv, int argc, XSizeHints* normal_hints, XWMHints* wm_hints, XClassHint* class_hints)
 {
     if (window_name)
@@ -380,27 +378,27 @@ XSetWMProperties(Display* display, Window w, XTextProperty* window_name, XTextPr
         XSetClassHint(display, w, class_hints);
 }
 
-extern "C" XWMHints*
-XAllocWMHints(void)
+extern "C" XLib::XWMHints*
+XLib::XAllocWMHints(void)
 {
     return (XWMHints*)malloc(sizeof(XWMHints));
 }
 
 extern "C" Status
-XGetWMName(Display* display, Window w, XTextProperty* name_return)
+XLib::XGetWMName(Display* display, Window w, XTextProperty* name_return)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" void
-XSetWMName(Display* display, Window w, XTextProperty* name)
+XLib::XSetWMName(Display* display, Window w, XTextProperty* name)
 {
     UNIMPLEMENTED();
 }
 
 extern "C" int
-XFetchName(Display* display, Window w, char** window_name_return)
+XLib::XFetchName(Display* display, Window w, char** window_name_return)
 {
     UNIMPLEMENTED();
     return BadWindow;
@@ -414,35 +412,35 @@ XLib::XStoreName(Display* display, Window w, const char* wname)
 }
 
 extern "C" int
-XSetWindowBackground(Display *display, Window w, unsigned long bg)
+XLib::XSetWindowBackground(Display *display, Window w, unsigned long bg)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" int
-XSetWindowBorder(Display* display, Window w, unsigned long border_pixel)
+XLib::XSetWindowBorder(Display* display, Window w, unsigned long border_pixel)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" int
-XClearWindow(Display *display, Window w)
+XLib::XClearWindow(Display *display, Window w)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" Status
-XReconfigureWMWindow(Display* display, Window w, int screen_number,
+XLib::XReconfigureWMWindow(Display* display, Window w, int screen_number,
     unsigned int value_mask, XWindowChanges* values)
 {
     return XConfigureWindow(display, w, value_mask, values);
 }
 
 extern "C" int
-XMoveWindow(Display* display, Window window, int x, int y)
+XLib::XMoveWindow(Display* display, Window window, int x, int y)
 {
     XWindowChanges changes;
     changes.x = x;
@@ -451,7 +449,7 @@ XMoveWindow(Display* display, Window window, int x, int y)
 }
 
 extern "C" int
-XResizeWindow(Display* display, Window window, unsigned int width, unsigned int height)
+XLib::XResizeWindow(Display* display, Window window, unsigned int width, unsigned int height)
 {
     XWindowChanges changes;
     changes.width = width;
@@ -460,7 +458,7 @@ XResizeWindow(Display* display, Window window, unsigned int width, unsigned int 
 }
 
 extern "C" int
-XRaiseWindow(Display* display, Window w)
+XLib::XRaiseWindow(Display* display, Window w)
 {
     XWindowChanges changes;
     changes.stack_mode = Above;
@@ -468,7 +466,7 @@ XRaiseWindow(Display* display, Window w)
 }
 
 extern "C" int
-XLowerWindow(Display* display, Window w)
+XLib::XLowerWindow(Display* display, Window w)
 {
     XWindowChanges changes;
     changes.stack_mode = Below;
@@ -476,7 +474,7 @@ XLowerWindow(Display* display, Window w)
 }
 
 extern "C" int
-XQueryTree(Display* display, Window w, Window* root_return,
+XLib::XQueryTree(Display* display, Window w, Window* root_return,
     Window* parent_return, Window** children_return, unsigned int* nchildren_return)
 {
     UNIMPLEMENTED();
@@ -484,7 +482,7 @@ XQueryTree(Display* display, Window w, Window* root_return,
 }
 
 extern "C" int
-XConfigureWindow(Display* display, Window w, unsigned int value_mask, XWindowChanges* values)
+XLib::XConfigureWindow(Display* display, Window w, unsigned int value_mask, XWindowChanges* values)
 {
     UNIMPLEMENTED();
     return Success;
@@ -499,14 +497,14 @@ XLib::XIconifyWindow(Display *display, Window w, int screen)
 }
 
 extern "C" int
-XSetTransientForHint(Display* display, Window w, Window prop_w)
+XLib::XSetTransientForHint(Display* display, Window w, Window prop_w)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" int
-XReparentWindow(Display* dpy, Window w, Window nP, int x, int y)
+XLib::XReparentWindow(Display* dpy, Window w, Window nP, int x, int y)
 {
     UNIMPLEMENTED();
     return Success;

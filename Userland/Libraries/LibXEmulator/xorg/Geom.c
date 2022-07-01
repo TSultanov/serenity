@@ -33,6 +33,9 @@ from The Open Group.
 #include <X11/Xlibint.h>
 #include <X11/Xutil.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
 /*
  * This routine given a user supplied positional argument and a default
  * argument (fully qualified) will return the position the window should take
@@ -87,3 +90,4 @@ XGeometry (
 		  2 * bwidth - yadd : py;
 	return (pmask);
 }
+#pragma GCC diagnostic pop

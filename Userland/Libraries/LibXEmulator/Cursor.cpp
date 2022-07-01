@@ -16,14 +16,14 @@ extern "C" {
 using namespace XLib;
 
 extern "C" Cursor
-XCreateFontCursor(Display *display, unsigned int xshape)
+XLib::XCreateFontCursor(Display *display, unsigned int xshape)
 {
     UNIMPLEMENTED();
     return (Cursor)0;
 }
 
 extern "C" Cursor
-XCreateGlyphCursor(Display *display, Font source_font, Font mask_font,
+XLib::XCreateGlyphCursor(Display *display, Font source_font, Font mask_font,
     unsigned int source_char, unsigned int mask_char,
     XColor const *foreground_color, XColor const *background_color)
 {
@@ -32,7 +32,7 @@ XCreateGlyphCursor(Display *display, Font source_font, Font mask_font,
 }
 
 extern "C" Cursor
-XCreatePixmapCursor(Display* display, Pixmap source, Pixmap mask,
+XLib::XCreatePixmapCursor(Display* display, Pixmap source, Pixmap mask,
     XColor* foreground_color, XColor* background_color,
     unsigned int x, unsigned int y)
 {
@@ -41,21 +41,21 @@ XCreatePixmapCursor(Display* display, Pixmap source, Pixmap mask,
 }
 
 extern "C" Status
-XFreeCursor(Display* display, Cursor cursor)
+XLib::XFreeCursor(Display* display, Cursor cursor)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" Status
-XRecolorCursor(Display* display, Cursor cursor, XColor* foreground_color, XColor* background_color)
+XLib::XRecolorCursor(Display* display, Cursor cursor, XColor* foreground_color, XColor* background_color)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 extern "C" Status
-XQueryBestCursor(Display* display, Drawable d, unsigned int width, unsigned int height,
+XLib::XQueryBestCursor(Display* display, Drawable d, unsigned int width, unsigned int height,
     unsigned int* width_return, unsigned int* height_return)
 {
     if (width_return)

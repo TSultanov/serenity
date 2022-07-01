@@ -20,14 +20,14 @@ extern "C" {
 using namespace XLib;
 
 extern "C" KeyCode
-XKeysymToKeycode(Display* display, KeySym keysym)
+XLib::XKeysymToKeycode(Display* display, KeySym keysym)
 {
     UNIMPLEMENTED();
     return (KeyCode)0;
 }
 
 extern "C" int
-XLookupString(XKeyEvent* key_event, char* buffer_return, int bytes_buffer,
+XLib::XLookupString(XKeyEvent* key_event, char* buffer_return, int bytes_buffer,
     KeySym* keysym_return, XComposeStatus* status_in_out)
 {
     UNIMPLEMENTED();
@@ -35,14 +35,14 @@ XLookupString(XKeyEvent* key_event, char* buffer_return, int bytes_buffer,
 }
 
 extern "C" KeySym
-XkbKeycodeToKeysym(Display* dpy, unsigned int kc, int group, int level)
+XLib::XkbKeycodeToKeysym(Display* dpy, unsigned int kc, int group, int level)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
 extern "C" Bool
-XkbLookupKeySym(Display* dpy, KeyCode keycode,
+XLib::XkbLookupKeySym(Display* dpy, KeyCode keycode,
     unsigned int modifiers, unsigned int* modifiers_return, KeySym* keysym_return)
 {
     UNIMPLEMENTED();
@@ -50,7 +50,7 @@ XkbLookupKeySym(Display* dpy, KeyCode keycode,
 }
 
 extern "C" unsigned int
-XkbKeysymToModifiers(Display* dpy, KeySym ks)
+XLib::XkbKeysymToModifiers(Display* dpy, KeySym ks)
 {
     switch (ks) {
     case XK_Shift_L:
@@ -79,7 +79,7 @@ XkbKeysymToModifiers(Display* dpy, KeySym ks)
 }
 
 extern "C" XModifierKeymap*
-XGetModifierMapping(Display* display)
+XLib::XGetModifierMapping(Display* display)
 {
     XModifierKeymap* map = (XModifierKeymap*)calloc(sizeof(XModifierKeymap), 1);
     UNIMPLEMENTED();
@@ -87,7 +87,7 @@ XGetModifierMapping(Display* display)
 }
 
 extern "C" int
-XFreeModifiermap(XModifierKeymap *modmap)
+XLib::XFreeModifiermap(XModifierKeymap *modmap)
 {
     free(modmap->modifiermap);
     free(modmap);
@@ -95,7 +95,7 @@ XFreeModifiermap(XModifierKeymap *modmap)
 }
 
 extern "C" XkbDescPtr
-XkbGetMap(Display* display, unsigned int which, unsigned int device_spec)
+XLib::XkbGetMap(Display* display, unsigned int which, unsigned int device_spec)
 {
     XkbDescPtr desc = (XkbDescPtr)calloc(sizeof(XkbDescRec), 1);
     desc->device_spec = device_spec;
@@ -107,7 +107,7 @@ XkbGetMap(Display* display, unsigned int which, unsigned int device_spec)
 }
 
 extern "C" Status
-XkbGetUpdatedMap(Display* display, unsigned int which, XkbDescPtr xkb)
+XLib::XkbGetUpdatedMap(Display* display, unsigned int which, XkbDescPtr xkb)
 {
     xkb->min_key_code = 1;
     xkb->max_key_code = 0;
@@ -116,14 +116,14 @@ XkbGetUpdatedMap(Display* display, unsigned int which, XkbDescPtr xkb)
 }
 
 extern "C" Status
-XkbGetNames(Display* dpy, unsigned int which, XkbDescPtr xkb)
+XLib::XkbGetNames(Display* dpy, unsigned int which, XkbDescPtr xkb)
 {
     // We do not actually fill anything in here, but leave it all zeros.
     return Success;
 }
 
 extern "C" void
-XkbFreeKeyboard(XkbDescPtr xkb, unsigned int which, Bool freeDesc)
+XLib::XkbFreeKeyboard(XkbDescPtr xkb, unsigned int which, Bool freeDesc)
 {
     if (!xkb)
         return;
@@ -133,14 +133,14 @@ XkbFreeKeyboard(XkbDescPtr xkb, unsigned int which, Bool freeDesc)
 }
 
 extern "C" KeySym
-XStringToKeysym(const char* string)
+XLib::XStringToKeysym(const char* string)
 {
     UNIMPLEMENTED();
     return NoSymbol;
 }
 
 extern "C" char*
-XKeysymToString(KeySym keysym)
+XLib::XKeysymToString(KeySym keysym)
 {
     UNIMPLEMENTED();
     return NULL;
@@ -149,39 +149,39 @@ XKeysymToString(KeySym keysym)
 // #pragma mark - minor functions
 
 extern "C" Bool
-XkbTranslateKeyCode(XkbDescPtr xkb, KeyCode key, unsigned int mods,
+XLib::XkbTranslateKeyCode(XkbDescPtr xkb, KeyCode key, unsigned int mods,
     unsigned int* mods_rtrn, KeySym* keysym_rtrn)
 {
     return XkbLookupKeySym(NULL, key, mods, mods_rtrn, keysym_rtrn);
 }
 
 extern "C" KeySym
-XKeycodeToKeysym(Display* dpy, unsigned int kc, int index)
+XLib::XKeycodeToKeysym(Display* dpy, unsigned int kc, int index)
 {
     return XkbKeycodeToKeysym(dpy, kc, 0, 0);
 }
 
 extern "C" KeySym
-XLookupKeysym(XKeyEvent* key_event, int index)
+XLib::XLookupKeysym(XKeyEvent* key_event, int index)
 {
     return XkbKeycodeToKeysym(key_event->display, key_event->keycode, 0, 0);
 }
 
 extern "C" Display*
-XkbOpenDisplay(char *display_name, int *event_rtrn, int *error_rtrn,
+XLib::XkbOpenDisplay(char *display_name, int *event_rtrn, int *error_rtrn,
     int *major_in_out, int *minor_in_out, int *reason_rtrn)
 {
     return XOpenDisplay(display_name);
 }
 
 extern "C" Bool
-XkbLibraryVersion(int *lib_major_in_out, int *lib_minor_in_out)
+XLib::XkbLibraryVersion(int *lib_major_in_out, int *lib_minor_in_out)
 {
     return True;
 }
 
 extern "C" Bool
-XkbQueryExtension(Display *dpy, int *opcode_rtrn, int *event_rtrn,
+XLib::XkbQueryExtension(Display *dpy, int *opcode_rtrn, int *event_rtrn,
     int *error_rtrn, int *major_in_out, int *minor_in_out)
 {
     return True;
@@ -190,55 +190,55 @@ XkbQueryExtension(Display *dpy, int *opcode_rtrn, int *event_rtrn,
 // #pragma mark - stubs
 
 extern "C" Bool
-XkbUseExtension(Display* dpy, int* major_rtrn, int* minor_rtrn)
+XLib::XkbUseExtension(Display* dpy, int* major_rtrn, int* minor_rtrn)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
 extern "C" int
-XkbTranslateKeySym(Display* dpy, KeySym* sym_return, unsigned int modifiers, char* buffer, int nbytes, int* extra_rtrn)
+XLib::XkbTranslateKeySym(Display* dpy, KeySym* sym_return, unsigned int modifiers, char* buffer, int nbytes, int* extra_rtrn)
 {
     UNIMPLEMENTED();
     return 0;
 }
 
 extern "C" void
-XConvertCase(KeySym keysym, KeySym *lower_return, KeySym *upper_return)
+XLib::XConvertCase(KeySym keysym, KeySym *lower_return, KeySym *upper_return)
 {
     UNIMPLEMENTED();
 }
 
 extern "C" KeySym*
-XGetKeyboardMapping(Display *display, unsigned int first_keycode, int keycode_count, int *keysyms_per_keycode_return)
+XLib::XGetKeyboardMapping(Display *display, unsigned int first_keycode, int keycode_count, int *keysyms_per_keycode_return)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" int
-XGetKeyboardControl(Display* dpy, XKeyboardState* state_return)
+XLib::XGetKeyboardControl(Display* dpy, XKeyboardState* state_return)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 extern "C" int
-XChangeKeyboardControl(Display* dpy, unsigned long value_mask, XKeyboardControl* control)
+XLib::XChangeKeyboardControl(Display* dpy, unsigned long value_mask, XKeyboardControl* control)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 extern "C" int
-XQueryKeymap(Display* dpy, char keys_return[32])
+XLib::XQueryKeymap(Display* dpy, char keys_return[32])
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 extern "C" Bool
-XkbSelectEvents(Display *display, unsigned int device_spec,
+XLib::XkbSelectEvents(Display *display, unsigned int device_spec,
     unsigned int bits_to_change, unsigned int values_for_bits)
 {
     UNIMPLEMENTED();
@@ -246,7 +246,7 @@ XkbSelectEvents(Display *display, unsigned int device_spec,
 }
 
 extern "C" Bool
-XkbSelectEventDetails(Display* display, unsigned int device_spec, unsigned int event_type,
+XLib::XkbSelectEventDetails(Display* display, unsigned int device_spec, unsigned int event_type,
     unsigned long int bits_to_change, unsigned long int values_for_bits)
 {
     UNIMPLEMENTED();
@@ -254,21 +254,21 @@ XkbSelectEventDetails(Display* display, unsigned int device_spec, unsigned int e
 }
 
 extern "C" Status
-XkbGetState(Display* dpy, unsigned int deviceSpec, XkbStatePtr rtrnState)
+XLib::XkbGetState(Display* dpy, unsigned int deviceSpec, XkbStatePtr rtrnState)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 extern "C" XkbDescPtr
-XkbGetKeyboard(Display* display, unsigned int which, unsigned int device_spec)
+XLib::XkbGetKeyboard(Display* display, unsigned int which, unsigned int device_spec)
 {
     UNIMPLEMENTED();
     return NULL;
 }
 
 extern "C" Bool
-XkbGetNamedIndicator(Display* dpy, Atom name,
+XLib::XkbGetNamedIndicator(Display* dpy, Atom name,
     int* index_return, Bool* state_return, XkbIndicatorMapPtr map_return, Bool* real_return)
 {
     UNIMPLEMENTED();
@@ -276,7 +276,7 @@ XkbGetNamedIndicator(Display* dpy, Atom name,
 }
 
 extern "C" Bool
-XkbSetNamedIndicator(Display* dpy, Atom name,
+XLib::XkbSetNamedIndicator(Display* dpy, Atom name,
     Bool change_state, Bool state, Bool create_new, XkbIndicatorMapPtr map)
 {
     UNIMPLEMENTED();
@@ -284,28 +284,28 @@ XkbSetNamedIndicator(Display* dpy, Atom name,
 }
 
 extern "C" Bool
-XkbBell(Display* display, Window window, int percent, Atom name)
+XLib::XkbBell(Display* display, Window window, int percent, Atom name)
 {
     UNIMPLEMENTED();
     return False;
 }
 
 extern "C" Bool
-XkbSetDetectableAutoRepeat(Display* display, Bool detectable, Bool* supported_rtrn)
+XLib::XkbSetDetectableAutoRepeat(Display* display, Bool detectable, Bool* supported_rtrn)
 {
     UNIMPLEMENTED();
     return False;
 }
 
 extern "C" Status
-XkbGetControls(Display* display, unsigned long which, XkbDescPtr xkb)
+XLib::XkbGetControls(Display* display, unsigned long which, XkbDescPtr xkb)
 {
     UNIMPLEMENTED();
     return BadImplementation;
 }
 
 extern "C" int
-XGrabKey(Display *display, int keycode, unsigned int modifiers, Window grab_window,
+XLib::XGrabKey(Display *display, int keycode, unsigned int modifiers, Window grab_window,
     Bool owner_events, int pointer_mode, int keyboard_mode)
 {
     UNIMPLEMENTED();
@@ -314,14 +314,14 @@ XGrabKey(Display *display, int keycode, unsigned int modifiers, Window grab_wind
 }
 
 extern "C" int
-XUngrabKey(Display *display, int keycode, unsigned int modifiers, Window grab_window)
+XLib::XUngrabKey(Display *display, int keycode, unsigned int modifiers, Window grab_window)
 {
     UNIMPLEMENTED();
     return Success;
 }
 
 extern "C" int
-XGrabKeyboard(Display *display, Window grab_window, Bool owner_events,
+XLib::XGrabKeyboard(Display *display, Window grab_window, Bool owner_events,
     int pointer_mode, int keyboard_mode, XLib::Time time)
 {
     UNIMPLEMENTED();
@@ -330,7 +330,7 @@ XGrabKeyboard(Display *display, Window grab_window, Bool owner_events,
 }
 
 extern "C" int
-XUngrabKeyboard(Display *display, XLib::Time time)
+XLib::XUngrabKeyboard(Display *display, XLib::Time time)
 {
     UNIMPLEMENTED();
     return Success;

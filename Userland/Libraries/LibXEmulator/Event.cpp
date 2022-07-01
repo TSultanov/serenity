@@ -65,6 +65,7 @@ XLib::XNextEvent(Display* display, XEvent* event)
 extern "C" int
 XLib::XPeekEvent(Display* display, XEvent* event)
 {
+    dbgln("XPeekEvent");
     XFlush(display);
     while(s_event_queue.is_empty()) {
         dbgln("Pump");

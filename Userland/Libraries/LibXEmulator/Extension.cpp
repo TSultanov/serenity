@@ -74,7 +74,7 @@ XLib::XListExtensions(Display* /*dpy*/, int* /*nextensions_return*/)
 }
 
 extern "C" int
-XFreeExtensionList(char** /*list*/)
+XLib::XFreeExtensionList(char** /*list*/)
 {
    return Success;
 }

@@ -30,6 +30,9 @@ in this Software without prior written authorization from The Open Group.
 #include <X11/Xlibint.h>
 #include <X11/Xutil.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
 static int _GeometryMaskToGravity(
     int mask);
 
@@ -181,3 +184,5 @@ static int _GeometryMaskToGravity(
         return SouthEastGravity;
     }
 }
+
+#pragma GCC diagnostic pop

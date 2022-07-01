@@ -255,7 +255,7 @@ XLib::XChangeProperty(Display* /*dpy*/, Window w, Atom property, Atom type,
 }
 
 extern "C" int
-XDeleteProperty(Display* /*display*/, Window /*w*/, Atom property)
+XLib::XDeleteProperty(Display* /*display*/, Window /*w*/, Atom property)
 {
     dbgln("libX11: unhandled Property (delete): {}", property);
     return BadImplementation;

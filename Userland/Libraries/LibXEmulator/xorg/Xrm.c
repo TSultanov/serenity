@@ -118,6 +118,7 @@ Bob Scheifler
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wlogical-not-parentheses"
+#pragma GCC diagnostic ignored "-Wuse-after-free"
 
 static XrmQuark XrmQString, XrmQANY;
 
