@@ -9,9 +9,9 @@ pkgconfig = 'pkg-config'
 
 [built-in options]
 c_args=['--target=x86_64-pc-serenity', '--sysroot=SERENITY_BUILD_DIR/Root']
-c_link_args=[--target=x86_64-pc-serenity', '--sysroot=SERENITY_BUILD_DIR/Root', '-LSERENITY_BUILD_DIR/Root/usr/local/lib']
+c_link_args=['--target=x86_64-pc-serenity', '--sysroot=SERENITY_BUILD_DIR/Root', '-LSERENITY_BUILD_DIR/Root/usr/local/lib']
 cpp_args=['--target=x86_64-pc-serenity', '--sysroot=SERENITY_BUILD_DIR/Root']
-cpp_link_args=[--target=x86_64-pc-serenity', '--sysroot=SERENITY_BUILD_DIR/Root', '-LSERENITY_BUILD_DIR/Root/usr/local/lib']
+cpp_link_args=['--target=x86_64-pc-serenity', '--sysroot=SERENITY_BUILD_DIR/Root', '-LSERENITY_BUILD_DIR/Root/usr/local/lib']
 
 [properties]
 sys_root = '../../../../Build/x86_64clang/Root'
