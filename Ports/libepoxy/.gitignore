@@ -1,0 +1,5 @@
+!cross_file-i686GNU.txt
+!cross_file-x86_64GNU.txt
+!cross_file-i686Clang.txt
+!cross_file-x86_64Clang.txt
+
