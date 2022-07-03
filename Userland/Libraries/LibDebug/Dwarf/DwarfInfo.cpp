@@ -8,6 +8,7 @@
 #include "AddressRanges.h"
 #include "AttributeValue.h"
 #include "CompilationUnit.h"
+#include "DwarfTypes.h"
 
 #include <AK/ByteReader.h>
 #include <AK/MemoryStream.h>
@@ -242,6 +243,14 @@ AttributeValue DwarfInfo::get_attribute_value(AttributeDataForm form, ssize_t im
 
         auto strings_data = debug_line_strings_data();
         value.m_data.as_string = bit_cast<char const*>(strings_data.offset_pointer(offset));
+        break;
+    }
+    case AttributeDataForm::LocListX: {
+        u64 data;
+        debug_info_stream.read_LEB128_unsigned(data);
+        VERIFY(!debug_info_stream.has_any_error());
+        value.m_type = AttributeValue::Type::UnsignedNumber;
+        value.m_data.as_unsigned = data;
         break;
     }
     case AttributeDataForm::ImplicitConst: {
