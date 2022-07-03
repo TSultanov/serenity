@@ -4,8 +4,8 @@ version=2.2
 useconfigure="true"
 use_fresh_config_sub="false"
 files="https://gitlab.freedesktop.org/xdg/shared-mime-info/-/archive/${version}/shared-mime-info-${version}.tar.gz shared-mime-info-${version}.tar.xz"
-configopts=("--cross-file" "cross_file.txt")
-depends=()
+configopts=("--cross-file" "cross_file.txt" "-Dupdate-mimedb=false")
+depends=("gettext")
 
 pre_configure() {
     run cp "../cross_file-${SERENITY_ARCH}${SERENITY_TOOLCHAIN}.txt" "cross_file.txt"
