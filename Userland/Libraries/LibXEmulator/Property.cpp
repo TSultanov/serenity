@@ -15,6 +15,55 @@ extern "C" {
 
 using namespace XLib;
 
+/* The _MOTIF_WM_HINTS property is widely used but not very well documented.
+ * Most producers and consumers of this API seem to copy and paste the definitions
+ * from Motif's headers, but the precise semantics are not very well defined. */
+enum {
+	MWM_HINTS_FUNCTIONS		= (1L << 0),
+	MWM_HINTS_DECORATIONS	= (1L << 1),
+	MWM_HINTS_INPUT_MODE	= (1L << 2),
+	MWM_HINTS_STATUS		= (1L << 3),
+};
+enum {
+	MWM_FUNC_ALL			= (1L << 0),
+	MWM_FUNC_RESIZE			= (1L << 1),
+	MWM_FUNC_MOVE			= (1L << 2),
+	MWM_FUNC_MINIMIZE		= (1L << 3),
+	MWM_FUNC_MAXIMIZE		= (1L << 4),
+	MWM_FUNC_CLOSE			= (1L << 5),
+};
+enum {
+	MWM_DECOR_ALL			= (1L << 0),
+	MWM_DECOR_BORDER		= (1L << 1),
+	MWM_DECOR_RESIZEH		= (1L << 2),
+	MWM_DECOR_TITLE			= (1L << 3),
+	MWM_DECOR_MENU			= (1L << 4),
+	MWM_DECOR_MINIMIZE		= (1L << 5),
+	MWM_DECOR_MAXIMIZE		= (1L << 6),
+};
+enum {
+	MWM_INPUT_MODELESS = 0,
+	MWM_INPUT_PRIMARY_APPLICATION_MODAL = 1,
+	MWM_INPUT_SYSTEM_MODAL = 2,
+	MWM_INPUT_FULL_APPLICATION_MODAL = 3,
+};
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+static void
+unknown_property(const char* format, Atom atom1, Atom atom2 = None)
+{
+	char* value1 = XGetAtomName(NULL, atom1);
+	char* value2 = atom2 != None ? XGetAtomName(NULL, atom2) : NULL;
+	if (value2)
+		fprintf(stderr, format, value1, value2);
+	else
+		fprintf(stderr, format, value1);
+	free(value1);
+	free(value2);
+}
+#pragma clang diagnostic pop
+
 static void
 _x_property_notify(XWindow* window, Atom property, int state)
 {
@@ -259,4 +308,70 @@ XLib::XDeleteProperty(Display* /*display*/, Window /*w*/, Atom property)
 {
     dbgln("libX11: unhandled Property (delete): {}", property);
     return BadImplementation;
+}
+
+extern "C" int
+XLib::XGetWindowProperty(Display* /*dpy*/, Window w, Atom property,
+    long /*long_offset*/, long /*long_length*/, Bool /*del*/, Atom req_type,
+    Atom* actual_type_return, int* actual_format_return,
+    unsigned long* nitems_return, unsigned long* bytes_after_return, unsigned char** prop_return)
+{
+    // Always initialize return values, same as the real Xlib.
+    *actual_type_return = 0;
+    *actual_format_return = 0;
+    *nitems_return = 0;
+    *bytes_after_return = 0;
+    *prop_return = NULL;
+    
+    switch(property) {
+    case Atoms::_MOTIF_WM_HINTS: {
+        RefPtr<XWindow> window = ObjectManager::the().get_window(w);
+        if (window.is_null() || !(window->host_window()))
+            return BadWindow;
+        auto bwindow = window->host_window();
+
+        long* values = (long*)calloc(sizeof(long), 4);
+        values[0] = MWM_HINTS_FUNCTIONS | MWM_HINTS_DECORATIONS | MWM_HINTS_INPUT_MODE;
+        long func = 0; {
+            if (bwindow->is_resizable())
+                func |= MWM_FUNC_RESIZE;
+//            if (bwindow->is_movable())
+            func |= MWM_FUNC_MOVE;
+            if (bwindow->is_minimizable())
+                func |= MWM_FUNC_MINIMIZE;
+//            if (bwindow->is_maximizable())
+            func |= MWM_FUNC_MAXIMIZE;
+            if (bwindow->is_closeable())
+                func |= MWM_FUNC_CLOSE;
+        }
+        values[1] = func;
+        long decor = MWM_DECOR_TITLE | MWM_DECOR_BORDER;
+        values[2] = decor;
+        long input = 0;
+        if(bwindow->is_modal())
+        {
+            input = MWM_INPUT_PRIMARY_APPLICATION_MODAL;
+        }
+        else
+        {
+            input = MWM_INPUT_MODELESS;
+
+        }
+        values[3] = input;
+
+        *actual_type_return = Atoms::_MOTIF_WM_HINTS;
+        *actual_format_return = 32;
+        *prop_return = (unsigned char*)values;
+        *nitems_return = 4;
+        return Success;
+    }
+
+    case Atoms::_NET_SUPPORTING_WM_CHECK:
+        // Only needed so client applications can detect when the WM changes.
+        // That never happens for us, so we can ignore this.
+        return BadImplementation;
+    }
+
+    unknown_property("libX11: unhandled Property (get): %s<%s>\n", property, req_type);
+        return BadImplementation;
 }

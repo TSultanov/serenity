@@ -631,23 +631,6 @@ XLib::XDefineCursor(Display *display, Window w, Cursor cursor)
     return Success;
 }
 
-extern "C" int
-XLib::XGetWindowProperty(Display* dpy, Window w, Atom property,
-    long long_offset, long long_length, Bool del, Atom req_type,
-    Atom* actual_type_return, int* actual_format_return,
-    unsigned long* nitems_return, unsigned long* bytes_after_return, unsigned char** prop_return)
-{
-    // Always initialize return values, same as the real Xlib.
-    *actual_type_return = 0;
-    *actual_format_return = 0;
-    *nitems_return = 0;
-    *bytes_after_return = 0;
-    *prop_return = NULL;
-    UNIMPLEMENTED();
-
-    return Success;
-}
-
 extern "C" Window
 XLib::XGetSelectionOwner(Display* display, Atom selection)
 {
