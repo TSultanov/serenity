@@ -49,6 +49,8 @@ public:
 
     XLib::Display * display() { return m_display; }
 
+    AK::RefPtr<GUI::Window> host_window() { return m_window; }
+
 private:
     XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::IntRect frame);
 

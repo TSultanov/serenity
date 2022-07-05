@@ -42,6 +42,7 @@ XLib::XCreateWindow(XLib::Display* display, XLib::Window parent, int x, int y, u
 
 //    auto app = GUI::Application::the();
 
+    dbgln("XCreateWindow: x: {}, y: {}, w: {}, h: {}", x, y, w, h);
     Gfx::IntRect frame(intrect_from_xrect(make_xrect(x, y, w, h)));
 
     auto parent_window = ObjectManager::the().get_window(parent);
@@ -51,9 +52,10 @@ XLib::XCreateWindow(XLib::Display* display, XLib::Window parent, int x, int y, u
     if(parent_window.is_null())
     {
         auto host_window = MUST(GUI::Window::try_create());
+        host_window->resize(w, h);
+        dbgln("XCreateWindow: {}, {}, {}", display, host_window, frame);
         xwindow = MUST(XWindow::try_create(display, host_window, frame));
         host_window->set_main_widget(xwindow->widget());
-        host_window->resize(w, h);
     }
     else
     {

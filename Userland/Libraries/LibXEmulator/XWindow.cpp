@@ -16,9 +16,11 @@ XWindow::XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::I
     m_painter(*m_bitmap),
     m_widget(_XWidgetImpl::try_create(*this).release_value_but_fixme_should_propagate_errors())
 {
+    dbgln("XWindow ctor start");
     m_window = host_window;
     m_widget->set_window(host_window);
     m_widget->set_relative_rect(frame);
+    dbgln("XWindow ctor end");
 }
 
 void XWindow::event_mask(long mask)
@@ -34,6 +36,7 @@ XWindow* XWindow::parent_window()
 _XWidgetImpl::_XWidgetImpl(XWindow& xWindow) :
     m_xWindow(xWindow)
 {
+    dbgln("_XWidgetImpl ctor");
 }
 
 void _XWidgetImpl::paint_event(GUI::PaintEvent& ev)
