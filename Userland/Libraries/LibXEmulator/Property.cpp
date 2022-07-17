@@ -48,8 +48,8 @@ enum {
 	MWM_INPUT_FULL_APPLICATION_MODAL = 3,
 };
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
 static void
 unknown_property(const char* format, Atom atom1, Atom atom2 = None)
 {
@@ -62,7 +62,7 @@ unknown_property(const char* format, Atom atom1, Atom atom2 = None)
 	free(value1);
 	free(value2);
 }
-#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
 
 static void
 _x_property_notify(XWindow* window, Atom property, int state)
