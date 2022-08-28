@@ -1,0 +1,6848 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Timur Sultanov <tssultanov@outlook.com>
+Date: Tue, 30 Aug 2022 16:35:28 +0400
+Subject: [PATCH] Porting
+
+---
+ CMakeLists.txt         |   2 +-
+ xlib/Atom.cpp          | 288 +++++++-------
+ xlib/Atom.h            |   9 +-
+ xlib/Bell.cpp          |   8 +-
+ xlib/Color.cpp         | 315 ++++++++-------
+ xlib/Color.h           |  38 +-
+ xlib/Cursor.cpp        | 255 ++++++------
+ xlib/Debug.cpp         |  28 +-
+ xlib/Debug.h           |   3 -
+ xlib/Display.cpp       | 280 ++++++-------
+ xlib/Drawables.cpp     | 868 ----------------------------------------
+ xlib/Drawables.h       | 182 ---------
+ xlib/Drawing.cpp       | 749 +++++++++++++++++------------------
+ xlib/Drawing.h         |  24 +-
+ xlib/Event.cpp         | 224 ++++++-----
+ xlib/Event.h           |  15 +-
+ xlib/Extension.cpp     |  68 ++--
+ xlib/Extension.h       |   4 +-
+ xlib/Font.cpp          | 877 ++++++++++++++++++++---------------------
+ xlib/Font.h            |   6 +-
+ xlib/GC.cpp            | 628 +++++++++++++++--------------
+ xlib/Image.cpp         | 369 ++++++++---------
+ xlib/Image.h           |  10 +-
+ xlib/Lock.h            |   2 +
+ xlib/ObjectManager.cpp |  59 +++
+ xlib/ObjectManager.h   |  37 ++
+ xlib/Property.h        |  20 +-
+ xlib/Region.cpp        |  11 +-
+ xlib/Undef.h           |   5 +
+ xlib/XDrawable.h       |  11 +
+ xlib/XPixmap.cpp       |  11 +
+ xlib/XPixmap.h         |  36 ++
+ xlib/XWindow.cpp       |  77 ++++
+ xlib/XWindow.h         |  68 ++++
+ 34 files changed, 2373 insertions(+), 3214 deletions(-)
+ delete mode 100644 xlib/Drawables.cpp
+ delete mode 100644 xlib/Drawables.h
+ create mode 100644 xlib/ObjectManager.cpp
+ create mode 100644 xlib/ObjectManager.h
+ create mode 100644 xlib/Undef.h
+ create mode 100644 xlib/XDrawable.h
+ create mode 100644 xlib/XPixmap.cpp
+ create mode 100644 xlib/XPixmap.h
+ create mode 100644 xlib/XWindow.cpp
+ create mode 100644 xlib/XWindow.h
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index cb178a7..390947b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,7 +1,7 @@
+ cmake_minimum_required(VERSION 3.8)
+ project(Xlibe)
+ 
+-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-register")
++set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-register -std=c++20")
+ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined")
+ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lib")
+ 
+diff --git a/xlib/Atom.cpp b/xlib/Atom.cpp
+index 7f5798c..7de20ca 100644
+--- a/xlib/Atom.cpp
++++ b/xlib/Atom.cpp
+@@ -2,187 +2,181 @@
+  * Copyright 2021, Haiku, Inc. All rights reserved.
+  * Distributed under the terms of the MIT license.
+  */
+-#include "Atom.h"
+-
+-#include <unordered_set>
+-#include <unordered_map>
+-#include <memory>
+-#include <string>
+-#include <cstdio>
++#include <AK/HashTable.h>
++#include <AK/HashMap.h>
++#include <AK/String.h>
+ 
+-#include "Locking.h"
++#include "Atom.h"
+ 
++namespace XLib {
+ extern "C" {
+-#include <X11/Xlib.h>
+ #include <X11/Xatom.h>
++#include <X11/Xlib.h>
++}
+ }
+ 
+ struct AtomEntry {
+-	Atom id = -1;
+-	std::shared_ptr<const char> string;
++    XLib::Atom id = -1;
++    AK::String string;
+ 
+-	AtomEntry(const char* str, Atom id = -1) : id(id), string(strdup(str)) {}
++    AtomEntry(const char* str, XLib::Atom id = -1) : id(id), string(strdup(str)) {}
+ 
+-	bool operator==(const AtomEntry& rhs) const {
+-		return strcmp(string.get(), rhs.string.get()) == 0;
+-	}
++    bool operator==(const AtomEntry& rhs) const {
++        return string == rhs.string;
++    }
+ 
+-	bool operator!=(const AtomEntry& rhs) const {
+-		return !(*this == rhs);
+-	}
++    bool operator!=(const AtomEntry& rhs) const {
++        return !(*this == rhs);
++    }
+ };
+ template<>
+-struct std::hash<AtomEntry> {
+-	std::size_t operator()(AtomEntry const& entry) const noexcept {
+-		return std::hash<std::string_view>{}(entry.string.get());
+-	}
++struct AK::Traits<AtomEntry> : public GenericTraits<AtomEntry> {
++    static unsigned hash(AtomEntry const& entry)
++    {
++        return entry.string.hash();
++    }
+ };
+ 
+-static pthread_rwlock_t sAtomsLock = PTHREAD_RWLOCK_INITIALIZER;
+-static std::unordered_set<AtomEntry> sAtoms;
+-static std::unordered_map<Atom, AtomEntry> sPredefinedAtoms;
++static AK::HashTable<AtomEntry> sAtoms;
++static AK::HashMap<XLib::Atom, AtomEntry> sPredefinedAtoms;
+ 
+-extern "C" Atom
+-XInternAtom(Display* dpy, const char* name, Bool onlyIfExists)
++extern "C" XLib::Atom
++XLib::XInternAtom(Display* /*dpy*/, const char* name, Bool onlyIfExists)
+ {
+-	PthreadReadLocker rdlock(sAtomsLock);
+-	const auto& result = sAtoms.find(name);
+-	if (result == sAtoms.end()) {
+-		if (onlyIfExists) {
+-			fprintf(stderr, "libX11: client requested non-existent Atom '%s'\n", name);
+-			return None;
+-		}
+-
+-		rdlock.Unlock();
+-		PthreadWriteLocker wrlock(sAtomsLock);
+-		sAtoms.insert(name);
+-		return (Atom)sAtoms.find(name)->string.get();
+-	}
+-	return (result->id != -1) ? result->id : (Atom)result->string.get();
++    const auto result = sAtoms.find(name);
++    if (result == sAtoms.end()) {
++        if (onlyIfExists) {
++            fprintf(stderr, "libX11: client requested non-existent Atom '%s'\n", name);
++            return None;
++        }
++
++        sAtoms.set(name);
++        return (Atom)(sAtoms.find(name)->string.impl()->characters());
++    }
++    return sAtoms.find(name)->id != (Atom)-1 ? sAtoms.find(name)->id : (Atom)(sAtoms.find(name)->string.impl()->characters());
+ }
+ 
+ extern "C" Status
+-XInternAtoms(Display* dpy, char** names, int count, Bool onlyIfExists,
+-	Atom* atoms_return)
++XLib::XInternAtoms(Display* dpy, char** names, int count, Bool onlyIfExists,
++    Atom* atoms_return)
+ {
+-	int i, missed = 0;
+-	for (i = 0; i < count; i++) {
+-		if (!(atoms_return[i] = XInternAtom(dpy, names[i], onlyIfExists))) {
+-			missed = i;
+-		}
+-	}
+-	return missed ? Success : BadAtom;
++    int i, missed = 0;
++    for (i = 0; i < count; i++) {
++        if (!(atoms_return[i] = XInternAtom(dpy, names[i], onlyIfExists))) {
++            missed = i;
++        }
++    }
++    return missed ? Success : BadAtom;
+ }
+ 
+ extern "C" char*
+-XGetAtomName(Display* display, Atom atom)
++XLib::XGetAtomName(Display* /*display*/, Atom atom)
+ {
+-	if (atom < Atoms::_predefined_atom_count) {
+-		PthreadReadLocker rdlock(sAtomsLock);
+-		const auto it = sPredefinedAtoms.find(atom);
+-		if (it == sPredefinedAtoms.end())
+-			return NULL;
+-		return strdup(it->second.string.get());
+-	}
+-
+-	return strdup((char*)atom);
++    if (atom < Atoms::_predefined_atom_count) {
++        const auto it = sPredefinedAtoms.get(atom);
++        if (!it.has_value())
++            return NULL;
++        return strdup(it->string.characters());
++    }
++
++    return strdup((char*)atom);
+ }
+ 
+ extern "C" Status
+-XGetAtomNames(Display* dpy, Atom* atoms, int count, char** names_return)
++XLib::XGetAtomNames(Display* dpy, Atom* atoms, int count, char** names_return)
+ {
+-	for (int i = 0; i < count; i++)
+-		names_return[i] = XGetAtomName(dpy, atoms[i]);
+-	return Success;
++    for (int i = 0; i < count; i++)
++        names_return[i] = XGetAtomName(dpy, atoms[i]);
++    return Success;
+ }
+ 
+ void
+ _x_init_atoms()
+ {
+ 	const char* xa_names[] = {
+-		"NO_ATOM",
+-		"XA_PRIMARY",
+-		"XA_SECONDARY",
+-		"XA_ARC",
+-		"XA_ATOM",
+-		"XA_BITMAP",
+-		"XA_CARDINAL",
+-		"XA_COLORMAP",
+-		"XA_CURSOR",
+-		"XA_CUT_BUFFER0",
+-		"XA_CUT_BUFFER1",
+-		"XA_CUT_BUFFER2",
+-		"XA_CUT_BUFFER3",
+-		"XA_CUT_BUFFER4",
+-		"XA_CUT_BUFFER5",
+-		"XA_CUT_BUFFER6",
+-		"XA_CUT_BUFFER7",
+-		"XA_DRAWABLE",
+-		"XA_FONT",
+-		"XA_INTEGER",
+-		"XA_PIXMAP",
+-		"XA_POINT",
+-		"XA_RECTANGLE",
+-		"XA_RESOURCE_MANAGER",
+-		"XA_RGB_COLOR_MAP",
+-		"XA_RGB_BEST_MAP",
+-		"XA_RGB_BLUE_MAP",
+-		"XA_RGB_DEFAULT_MAP",
+-		"XA_RGB_GRAY_MAP",
+-		"XA_RGB_GREEN_MAP",
+-		"XA_RGB_RED_MAP",
+-		"XA_STRING",
+-		"XA_VISUALID",
+-		"XA_WINDOW",
+-		"XA_WM_COMMAND",
+-		"XA_WM_HINTS",
+-		"XA_WM_CLIENT_MACHINE",
+-		"XA_WM_ICON_NAME",
+-		"XA_WM_ICON_SIZE",
+-		"XA_WM_NAME",
+-		"XA_WM_NORMAL_HINTS",
+-		"XA_WM_SIZE_HINTS",
+-		"XA_WM_ZOOM_HINTS",
+-		"XA_MIN_SPACE",
+-		"XA_NORM_SPACE",
+-		"XA_MAX_SPACE",
+-		"XA_END_SPACE",
+-		"XA_SUPERSCRIPT_X",
+-		"XA_SUPERSCRIPT_Y",
+-		"XA_SUBSCRIPT_X",
+-		"XA_SUBSCRIPT_Y",
+-		"XA_UNDERLINE_POSITION",
+-		"XA_UNDERLINE_THICKNESS",
+-		"XA_STRIKEOUT_ASCENT",
+-		"XA_STRIKEOUT_DESCENT",
+-		"XA_ITALIC_ANGLE",
+-		"XA_X_HEIGHT",
+-		"XA_QUAD_WIDTH",
+-		"XA_WEIGHT",
+-		"XA_POINT_SIZE",
+-		"XA_RESOLUTION",
+-		"XA_COPYRIGHT",
+-		"XA_NOTICE",
+-		"XA_FONT_NAME",
+-		"XA_FAMILY_NAME",
+-		"XA_FULL_NAME",
+-		"XA_CAP_HEIGHT",
+-		"XA_WM_CLASS",
+-		"XA_WM_TRANSIENT_FOR",
+-		NULL
+-	};
+-
+-	PthreadWriteLocker wrlock(sAtomsLock);
+-	if (sAtoms.find(xa_names[0]) != sAtoms.end())
+-		return; // Already initialized.
+-
+-	auto insert = [](const char* name, Atom id) {
+-		sAtoms.insert(AtomEntry(name, id));
+-		sPredefinedAtoms.insert({id, *sAtoms.find(name)});
+-	};
+-
+-	for (int i = 0; xa_names[i] != NULL; i++)
+-		insert(xa_names[i], i);
++        "NO_ATOM",
++        "XA_PRIMARY",
++        "XA_SECONDARY",
++        "XA_ARC",
++        "XA_ATOM",
++        "XA_BITMAP",
++        "XA_CARDINAL",
++        "XA_COLORMAP",
++        "XA_CURSOR",
++        "XA_CUT_BUFFER0",
++        "XA_CUT_BUFFER1",
++        "XA_CUT_BUFFER2",
++        "XA_CUT_BUFFER3",
++        "XA_CUT_BUFFER4",
++        "XA_CUT_BUFFER5",
++        "XA_CUT_BUFFER6",
++        "XA_CUT_BUFFER7",
++        "XA_DRAWABLE",
++        "XA_FONT",
++        "XA_INTEGER",
++        "XA_PIXMAP",
++        "XA_POINT",
++        "XA_RECTANGLE",
++        "XA_RESOURCE_MANAGER",
++        "XA_RGB_COLOR_MAP",
++        "XA_RGB_BEST_MAP",
++        "XA_RGB_BLUE_MAP",
++        "XA_RGB_DEFAULT_MAP",
++        "XA_RGB_GRAY_MAP",
++        "XA_RGB_GREEN_MAP",
++        "XA_RGB_RED_MAP",
++        "XA_STRING",
++        "XA_VISUALID",
++        "XA_WINDOW",
++        "XA_WM_COMMAND",
++        "XA_WM_HINTS",
++        "XA_WM_CLIENT_MACHINE",
++        "XA_WM_ICON_NAME",
++        "XA_WM_ICON_SIZE",
++        "XA_WM_NAME",
++        "XA_WM_NORMAL_HINTS",
++        "XA_WM_SIZE_HINTS",
++        "XA_WM_ZOOM_HINTS",
++        "XA_MIN_SPACE",
++        "XA_NORM_SPACE",
++        "XA_MAX_SPACE",
++        "XA_END_SPACE",
++        "XA_SUPERSCRIPT_X",
++        "XA_SUPERSCRIPT_Y",
++        "XA_SUBSCRIPT_X",
++        "XA_SUBSCRIPT_Y",
++        "XA_UNDERLINE_POSITION",
++        "XA_UNDERLINE_THICKNESS",
++        "XA_STRIKEOUT_ASCENT",
++        "XA_STRIKEOUT_DESCENT",
++        "XA_ITALIC_ANGLE",
++        "XA_X_HEIGHT",
++        "XA_QUAD_WIDTH",
++        "XA_WEIGHT",
++        "XA_POINT_SIZE",
++        "XA_RESOLUTION",
++        "XA_COPYRIGHT",
++        "XA_NOTICE",
++        "XA_FONT_NAME",
++        "XA_FAMILY_NAME",
++        "XA_FULL_NAME",
++        "XA_CAP_HEIGHT",
++        "XA_WM_CLASS",
++        "XA_WM_TRANSIENT_FOR",
++        NULL
++    };
++
++    //PthreadWriteLocker wrlock(sAtomsLock);
++    if (sAtoms.contains(xa_names[0]))
++        return; // Already initialized.
++
++    auto insert = [](const char* name, XLib::Atom id) {
++        sAtoms.set(AtomEntry(name, id));
++        sPredefinedAtoms.set(id, *sAtoms.find(name));
++    };
++
++    for (int i = 0; xa_names[i] != NULL; i++)
++        insert(xa_names[i], i);
+ 
+ #define ATOM(NAME) insert(#NAME, Atoms::NAME);
+ #include "atoms.h"
+diff --git a/xlib/Atom.h b/xlib/Atom.h
+index d67d280..7dd1630 100644
+--- a/xlib/Atom.h
++++ b/xlib/Atom.h
+@@ -4,24 +4,27 @@
+  */
+ #pragma once
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ #include <X11/Xatom.h>
+ }
++}
+ 
+ namespace Atoms {
++using namespace XLib;
+ 
+ enum {
+-	_xa_last_predefined = XA_LAST_PREDEFINED,
++    _xa_last_predefined = XA_LAST_PREDEFINED,
+ 
+ #define ATOM(NAME) NAME,
+ #include "atoms.h"
+ #undef ATOM
+ 
+-	_predefined_atom_count,
++    _predefined_atom_count,
+ }; // enum
+ static_assert(Atoms::_predefined_atom_count < 4096);
+ 
+ } // namespace Atoms
+ 
+-void _x_init_atoms();
++void _x_init_atoms();
+\ No newline at end of file
+diff --git a/xlib/Bell.cpp b/xlib/Bell.cpp
+index bbd017f..17ca4f6 100644
+--- a/xlib/Bell.cpp
++++ b/xlib/Bell.cpp
+@@ -3,15 +3,17 @@
+  * Copyright 2021, Haiku, Inc. All rights reserved.
+  * Distributed under the terms of the MIT license.
+  */
+-#include <support/Beep.h>
++#include <AK/Format.h>
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ }
++}
+ 
+ extern "C" int
+-XBell(Display* dpy, int percent)
++XBell(XLib::Display* dpy, int percent)
+ {
+-	beep();
++	dbgln("Stub: {}", __func__);
+ 	return 0;
+ }
+diff --git a/xlib/Color.cpp b/xlib/Color.cpp
+index 4568d22..4b429f5 100644
+--- a/xlib/Color.cpp
++++ b/xlib/Color.cpp
+@@ -5,11 +5,7 @@
+  */
+ #include "Color.h"
+ 
+-#include <ctype.h>
+-#include <cstdio>
+-#include <cstring>
+-#include <interface/InterfaceDefs.h>
+-
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ #include <X11/Xlibint.h>
+@@ -17,197 +13,198 @@ extern "C" {
+ 
+ #include "tables/ColorTable.h"
+ }
+-
+-static XID sDummy;
+-
+-color_space
+-_x_color_space_for(Visual* v, int bits_per_pixel)
+-{
+-	// We assume everything is little-endian at present.
+-	static_assert(B_RGBA32 == B_RGBA32_LITTLE);
+-
+-	switch (bits_per_pixel) {
+-	case 1:  return B_GRAY1;
+-	case 8:  return B_GRAY8;
+-	case 15: return B_RGB15;
+-	case 16: return B_RGB16;
+-	case 24: return B_RGB24;
+-	case 32: return B_RGBA32;
+-	default:
+-		debugger("Unsupported color space!");
+-		return B_RGB24;
+-	}
+-}
+-
+-int
+-_x_depth_for_color_space(color_space space)
+-{
+-	switch (space) {
+-	case B_GRAY1:	return 1;
+-	case B_GRAY8:	return 8;
+-	case B_RGB15:	return 15;
+-	case B_RGB16:	return 16;
+-	case B_RGB24:	return 24;
+-	case B_RGB32:	return 32;
+-	case B_RGBA32:	return 32;
+-	default:
+-		debugger("Unsupported color space!");
+-		return 24;
+-	}
+-}
+-
+-static int
+-FindColor(const char *name, XColor *def)
+-{
+-	static int numXColors = 0;
+-	if (numXColors == 0) {
+-		XColorEntry *ePtr;
+-		for (ePtr = xColors; ePtr->name != NULL; ePtr++) {
+-			numXColors++;
+-		}
+-	}
+-
+-	int l, u, r, i;
+-	l = 0;
+-	u = numXColors - 1;
+-	while (l <= u) {
+-		i = (l + u) / 2;
+-		r = strcasecmp(name, xColors[i].name);
+-		if (r == 0) {
+-			break;
+-		} else if (r < 0) {
+-			u = i-1;
+-		} else {
+-			l = i+1;
+-		}
+-	}
+-	if (l > u) {
+-		return 0;
+-	}
+-	def->red   = xColors[i].red << 8;
+-	def->green = xColors[i].green << 8;
+-	def->blue  = xColors[i].blue << 8;
+-	return 1;
+-}
+-
+-extern "C" Status
+-XParseColor(Display *dpy, Colormap cmap, const char *spec, XColor *def)
+-{
+-	if (spec[0] == '#') {
+-		int i;
+-		if (((i = strlen(spec + 1)) % 3) != 0)
+-			return 0;
+-		i /= 3;
+-
+-		char fmt[16];
+-		int red, green, blue;
+-		sprintf(fmt, "%%%dx%%%dx%%%dx", i, i, i);
+-		if (sscanf(spec + 1, fmt, &red, &green, &blue) != 3)
+-			return 0;
+-
+-		def->red = red << 8;
+-		def->green = green << 8;
+-		def->blue = blue << 8;
+-	} else if (strncmp(spec, "rgb:", 4) == 0) {
+-		int red, green, blue;
+-		if (sscanf(spec + 4, "%2x/%2x/%2x", &red, &green, &blue) != 3)
+-			return 0;
+-
+-		def->red = red << 8;
+-		def->green = green << 8;
+-		def->blue = blue << 8;
+-	} else {
+-		if (!FindColor(spec, def))
+-			return 0;
+-	}
+-	def->pixel = _x_rgb_to_pixel(make_color(def->red / 257, def->green / 257, def->blue / 257));
+-	def->flags = DoRed | DoGreen | DoBlue;
+-	def->pad = 0;
+-
+-	return 1;
+-}
+-
+-extern "C" Status
+-XLookupColor(Display *dpy, Colormap cmap,
+-	const char *colorname, XColor *hard_def, XColor *exact_def)
+-{
+-	XParseColor(dpy, cmap, colorname, exact_def);
+-	hard_def->pixel = exact_def->pixel;
+-	return 1;
+ }
+ 
+-extern "C" Status
+-XAllocNamedColor(Display *dpy, Colormap cmap,
+-	const char *colorname, XColor *hard_def, XColor *exact_def)
+-{
+-	return XLookupColor(dpy, cmap, colorname, hard_def, exact_def);
+-}
++static XLib::XID sDummy;
++
++// color_space
++// _x_color_space_for(Visual* v, int bits_per_pixel)
++// {
++// 	// We assume everything is little-endian at present.
++// 	static_assert(B_RGBA32 == B_RGBA32_LITTLE);
++
++// 	switch (bits_per_pixel) {
++// 	case 1:  return B_GRAY1;
++// 	case 8:  return B_GRAY8;
++// 	case 15: return B_RGB15;
++// 	case 16: return B_RGB16;
++// 	case 24: return B_RGB24;
++// 	case 32: return B_RGBA32;
++// 	default:
++// 		debugger("Unsupported color space!");
++// 		return B_RGB24;
++// 	}
++// }
++
++// int
++// _x_depth_for_color_space(color_space space)
++// {
++// 	switch (space) {
++// 	case B_GRAY1:	return 1;
++// 	case B_GRAY8:	return 8;
++// 	case B_RGB15:	return 15;
++// 	case B_RGB16:	return 16;
++// 	case B_RGB24:	return 24;
++// 	case B_RGB32:	return 32;
++// 	case B_RGBA32:	return 32;
++// 	default:
++// 		debugger("Unsupported color space!");
++// 		return 24;
++// 	}
++// }
++
++// static int
++// FindColor(const char *name, XColor *def)
++// {
++// 	static int numXColors = 0;
++// 	if (numXColors == 0) {
++// 		XColorEntry *ePtr;
++// 		for (ePtr = xColors; ePtr->name != NULL; ePtr++) {
++// 			numXColors++;
++// 		}
++// 	}
++
++// 	int l, u, r, i;
++// 	l = 0;
++// 	u = numXColors - 1;
++// 	while (l <= u) {
++// 		i = (l + u) / 2;
++// 		r = strcasecmp(name, xColors[i].name);
++// 		if (r == 0) {
++// 			break;
++// 		} else if (r < 0) {
++// 			u = i-1;
++// 		} else {
++// 			l = i+1;
++// 		}
++// 	}
++// 	if (l > u) {
++// 		return 0;
++// 	}
++// 	def->red   = xColors[i].red << 8;
++// 	def->green = xColors[i].green << 8;
++// 	def->blue  = xColors[i].blue << 8;
++// 	return 1;
++// }
++
++// extern "C" Status
++// XParseColor(Display *dpy, Colormap cmap, const char *spec, XColor *def)
++// {
++// 	if (spec[0] == '#') {
++// 		int i;
++// 		if (((i = strlen(spec + 1)) % 3) != 0)
++// 			return 0;
++// 		i /= 3;
++
++// 		char fmt[16];
++// 		int red, green, blue;
++// 		sprintf(fmt, "%%%dx%%%dx%%%dx", i, i, i);
++// 		if (sscanf(spec + 1, fmt, &red, &green, &blue) != 3)
++// 			return 0;
++
++// 		def->red = red << 8;
++// 		def->green = green << 8;
++// 		def->blue = blue << 8;
++// 	} else if (strncmp(spec, "rgb:", 4) == 0) {
++// 		int red, green, blue;
++// 		if (sscanf(spec + 4, "%2x/%2x/%2x", &red, &green, &blue) != 3)
++// 			return 0;
++
++// 		def->red = red << 8;
++// 		def->green = green << 8;
++// 		def->blue = blue << 8;
++// 	} else {
++// 		if (!FindColor(spec, def))
++// 			return 0;
++// 	}
++// 	def->pixel = _x_rgb_to_pixel(make_color(def->red / 257, def->green / 257, def->blue / 257));
++// 	def->flags = DoRed | DoGreen | DoBlue;
++// 	def->pad = 0;
++
++// 	return 1;
++// }
++
++// extern "C" Status
++// XLookupColor(Display *dpy, Colormap cmap,
++// 	const char *colorname, XColor *hard_def, XColor *exact_def)
++// {
++// 	XParseColor(dpy, cmap, colorname, exact_def);
++// 	hard_def->pixel = exact_def->pixel;
++// 	return 1;
++// }
++
++// extern "C" Status
++// XAllocNamedColor(Display *dpy, Colormap cmap,
++// 	const char *colorname, XColor *hard_def, XColor *exact_def)
++// {
++// 	return XLookupColor(dpy, cmap, colorname, hard_def, exact_def);
++// }
+ 
+ extern "C" Status
+-XQueryColors(Display *display, Colormap colormap,
+-	XColor *defs_in_out, int ncolors)
++XQueryColors(XLib::Display *display, XLib::Colormap colormap,
++	XLib::XColor *defs_in_out, int ncolors)
+ {
+-	for (int i = 0; i < ncolors; i++) {
+-		rgb_color color = _x_pixel_to_rgb(defs_in_out[i].pixel);
+-		defs_in_out[i].red = color.red * 257;
+-		defs_in_out[i].green = color.green * 257;
+-		defs_in_out[i].blue = color.blue * 257;
+-		defs_in_out[i].flags = DoRed | DoGreen | DoBlue;
+-		defs_in_out[i].pad = 0;
+-	}
+-	return Success;
++    for (int i = 0; i < ncolors; i++) {
++        Gfx::Color color = _x_pixel_to_rgb(defs_in_out[i].pixel);
++        defs_in_out[i].red = color.red();
++        defs_in_out[i].green = color.green();
++        defs_in_out[i].blue = color.blue();
++        defs_in_out[i].flags = DoRed | DoGreen | DoBlue;
++        defs_in_out[i].pad = 0;
++    }
++    return Success;
+ }
+ 
+ extern "C" Status
+-XQueryColor(Display *display, Colormap colormap,
+-	XColor* defs_in_out)
++XQueryColor(XLib::Display *display, XLib::Colormap colormap,
++	XLib::XColor* defs_in_out)
+ {
+ 	return XQueryColors(display, colormap, defs_in_out, 1);
+ }
+ 
+ extern "C" int
+-XAllocColor(Display* dpy, Colormap cmap, XColor* def)
++XAllocColor(XLib::Display* dpy, XLib::Colormap cmap, XLib::XColor* def)
+ {
+-	def->pixel = _x_rgb_to_pixel(make_color(def->red / 257, def->green / 257, def->blue / 257));
++	def->pixel = _x_rgb_to_pixel(Gfx::Color(def->red, def->green, def->blue));
+ 	return 1;
+ }
+ 
+ extern "C" int
+-XFreeColors(Display *display, Colormap colormap,
++XFreeColors(XLib::Display *display, XLib::Colormap colormap,
+ 	unsigned long *pixels, int npixels, unsigned long planes)
+ {
+ 	// Nothing to do.
+ 	return Success;
+ }
+ 
+-extern "C" XStandardColormap*
++extern "C" XLib::XStandardColormap*
+ XAllocStandardColormap()
+ {
+-	return (XStandardColormap*)malloc(sizeof(XStandardColormap));
++	return (XLib::XStandardColormap*)malloc(sizeof(XLib::XStandardColormap));
+ }
+ 
+-extern "C" Colormap
+-XCreateColormap(Display* display, Window window, Visual* visual, int allocate)
++extern "C" XLib::Colormap
++XCreateColormap(XLib::Display* display, XLib::Window window, XLib::Visual* visual, int allocate)
+ {
+ 	// Return a dummy colormap for TrueColor, so things do not complain.
+ 	if (allocate == AllocNone && ((visual && visual->c_class == TrueColor) || !visual))
+-		return (Colormap)&sDummy;
++		return (XLib::Colormap)&sDummy;
+ 	return None;
+ }
+ 
+-extern "C" Colormap
+-XCopyColormapAndFree(Display* display, Colormap colormap)
++extern "C" XLib::Colormap
++XCopyColormapAndFree(XLib::Display* display, XLib::Colormap colormap)
+ {
+ 	// We don't support multiple colormaps.
+ 	return None;
+ }
+ 
+ extern "C" Status
+-XAllocColorCells(Display *display, Colormap colormap,
++XAllocColorCells(XLib::Display *display, XLib::Colormap colormap,
+ 	Bool contig, unsigned long* plane_masks_return, unsigned int nplanes,
+ 	unsigned long* pixels_return, unsigned int npixels)
+ {
+-	if (colormap == (Colormap)&sDummy)
++	if (colormap == (XLib::Colormap)&sDummy)
+ 		return Success;
+ 
+ 	// We don't support anything else.
+@@ -215,33 +212,33 @@ XAllocColorCells(Display *display, Colormap colormap,
+ }
+ 
+ extern "C" Status
+-XInstallColormap(Display* display, Colormap colormap)
++XInstallColormap(XLib::Display* display, XLib::Colormap colormap)
+ {
+-	if (colormap == (Colormap)&sDummy)
++	if (colormap == (XLib::Colormap)&sDummy)
+ 		return Success;
+ 	return BadImplementation;
+ }
+ 
+ extern "C" Status
+-XUninstallColormap(Display* display, Colormap colormap)
++XUninstallColormap(XLib::Display* display, XLib::Colormap colormap)
+ {
+ 	return BadImplementation;
+ }
+ 
+ extern "C" Status
+-XStoreColors(Display* display, Colormap colormap, XColor* color, int ncolors)
++XStoreColors(XLib::Display* display, XLib::Colormap colormap, XLib::XColor* color, int ncolors)
+ {
+ 	return BadColor;
+ }
+ 
+ extern "C" Status
+-XStoreColor(Display* dpy, Colormap cmap, XColor* color)
++XStoreColor(XLib::Display* dpy, XLib::Colormap cmap, XLib::XColor* color)
+ {
+ 	return XStoreColors(dpy, cmap, color, 1);
+ }
+ 
+ extern "C" Status
+-XFreeColormap(Display* display, Colormap colormap)
++XFreeColormap(XLib::Display* display, XLib::Colormap colormap)
+ {
+ 	return Success;
+ }
+diff --git a/xlib/Color.h b/xlib/Color.h
+index d85bb8a..2563b20 100644
+--- a/xlib/Color.h
++++ b/xlib/Color.h
+@@ -5,37 +5,41 @@
+  */
+ #pragma once
+ 
+-#include <interface/GraphicsDefs.h>
++#include <LibGfx/Color.h>
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ }
++}
+ 
+ static inline void
+-_x_get_rgb_masks(Visual* v)
++_x_get_rgb_masks(XLib::Visual* v)
+ {
+-	v->red_mask     = 255 << 16;
+-	v->green_mask   = 255 << 8;
+-	v->blue_mask    = 255;
++    v->red_mask     = 255 << 16;
++    v->green_mask   = 255 << 8;
++    v->blue_mask    = 255;
+ }
+ 
+ static inline unsigned long
+-_x_rgb_to_pixel(rgb_color color)
++_x_rgb_to_pixel(Color color)
+ {
+-	long result = long(color.blue) | (long(color.green) << 8)
+-		| (long(color.red) << 16) | (long(color.alpha) << 24);
+-	return result;
++    long result = long(color.blue()) | (long(color.green()) << 8)
++        | (long(color.red()) << 16) | (long(color.alpha()) << 24);
++    return result;
+ }
+ 
+-static inline rgb_color
++static inline Gfx::Color
+ _x_pixel_to_rgb(unsigned long color, bool alpha = false)
+ {
+-	rgb_color rgb;
+-	rgb.set_to((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
+-	if (alpha)
+-		rgb.alpha = (color >> 24) & 0xFF;
+-	return rgb;
++    Gfx::Color rgb;
++    rgb.set_red((color >> 16) & 0xFF);
++    rgb.set_green((color >> 8) & 0xFF);
++    rgb.set_blue(color & 0xFF);
++    if (alpha)
++        rgb.set_alpha((color >> 24) & 0xFF);
++    return rgb;
+ }
+ 
+-color_space _x_color_space_for(Visual* v, int bits_per_pixel);
+-int _x_depth_for_color_space(color_space space);
++// color_space _x_color_space_for(Visual* v, int bits_per_pixel);
++// int _x_depth_for_color_space(color_space space);
+diff --git a/xlib/Cursor.cpp b/xlib/Cursor.cpp
+index 6bc1788..df0833a 100644
+--- a/xlib/Cursor.cpp
++++ b/xlib/Cursor.cpp
+@@ -3,165 +3,174 @@
+  * Distributed under the terms of the MIT license.
+  */
+ 
+-#include <app/Cursor.h>
+-#include <interface/Bitmap.h>
++#include <AK/Format.h>
+ 
+-#include "Color.h"
+-#include "Drawing.h"
+-#include "Drawables.h"
+-#include "Debug.h"
+-#include "Image.h"
++// #include "Color.h"
++// #include "Drawing.h"
++// #include "Drawables.h"
++// #include "Debug.h"
++// #include "Image.h"
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ #include <X11/cursorfont.h>
+ }
++}
++
++#define UNIMPLEMENTED() dbgln("Stub: {}", __func__)
+ 
+-extern "C" Cursor
+-XCreateFontCursor(Display *display, unsigned int xshape)
++extern "C" XLib::Cursor
++XCreateFontCursor(XLib::Display *display, unsigned int xshape)
+ {
+-	BCursorID shape;
+-	switch (xshape) {
+-	case XC_xterm:
+-		shape = B_CURSOR_ID_I_BEAM;
+-		break;
+-	case XC_watch:
+-		shape = B_CURSOR_ID_PROGRESS;
+-		break;
+-	case XC_cross:
+-	case XC_cross_reverse:
+-	case XC_tcross:
+-	case XC_crosshair:
+-	case XC_diamond_cross:
+-	case XC_circle:
+-	case XC_dot:
+-	case XC_dotbox:
+-	case XC_draped_box:
+-		shape = B_CURSOR_ID_CROSS_HAIR;
+-		break;
+-	case XC_hand1:
+-	case XC_hand2:
+-		shape = B_CURSOR_ID_FOLLOW_LINK;
+-		break;
+-	case XC_question_arrow:
+-		shape = B_CURSOR_ID_HELP;
+-		break;
+-	case XC_sb_left_arrow:
+-		shape = B_CURSOR_ID_RESIZE_EAST;
+-		break;
+-	case XC_right_ptr:
+-	case XC_sb_right_arrow:
+-		shape = B_CURSOR_ID_RESIZE_WEST;
+-		break;
+-	case XC_sb_h_double_arrow:
+-		shape = B_CURSOR_ID_RESIZE_EAST_WEST;
+-		break;
+-	case XC_sb_up_arrow:
+-		shape = B_CURSOR_ID_RESIZE_NORTH;
+-		break;
+-	case XC_sb_down_arrow:
+-		shape = B_CURSOR_ID_RESIZE_SOUTH;
+-		break;
+-	case XC_sb_v_double_arrow:
+-	case XC_double_arrow:
+-		shape = B_CURSOR_ID_RESIZE_NORTH_SOUTH;
+-		break;
+-	case XC_pirate:
+-		shape = B_CURSOR_ID_NOT_ALLOWED;
+-		break;
+-	case XC_bottom_right_corner:
+-	case XC_top_left_corner:
+-		shape = B_CURSOR_ID_RESIZE_NORTH_WEST_SOUTH_EAST;
+-		break;
+-	case XC_fleur:
+-		shape = B_CURSOR_ID_MOVE;
+-		break;
+-	case XC_bottom_left_corner:
+-	case XC_top_right_corner:
+-		shape = B_CURSOR_ID_RESIZE_NORTH_EAST_SOUTH_WEST;
+-		break;
+-	case XC_left_ptr:
+-	default:
+-		shape = B_CURSOR_ID_SYSTEM_DEFAULT;
+-		break;
+-	}
+-	return (Cursor)new BCursor(shape);
++	// BCursorID shape;
++	// switch (xshape) {
++	// case XC_xterm:
++	// 	shape = B_CURSOR_ID_I_BEAM;
++	// 	break;
++	// case XC_watch:
++	// 	shape = B_CURSOR_ID_PROGRESS;
++	// 	break;
++	// case XC_cross:
++	// case XC_cross_reverse:
++	// case XC_tcross:
++	// case XC_crosshair:
++	// case XC_diamond_cross:
++	// case XC_circle:
++	// case XC_dot:
++	// case XC_dotbox:
++	// case XC_draped_box:
++	// 	shape = B_CURSOR_ID_CROSS_HAIR;
++	// 	break;
++	// case XC_hand1:
++	// case XC_hand2:
++	// 	shape = B_CURSOR_ID_FOLLOW_LINK;
++	// 	break;
++	// case XC_question_arrow:
++	// 	shape = B_CURSOR_ID_HELP;
++	// 	break;
++	// case XC_sb_left_arrow:
++	// 	shape = B_CURSOR_ID_RESIZE_EAST;
++	// 	break;
++	// case XC_right_ptr:
++	// case XC_sb_right_arrow:
++	// 	shape = B_CURSOR_ID_RESIZE_WEST;
++	// 	break;
++	// case XC_sb_h_double_arrow:
++	// 	shape = B_CURSOR_ID_RESIZE_EAST_WEST;
++	// 	break;
++	// case XC_sb_up_arrow:
++	// 	shape = B_CURSOR_ID_RESIZE_NORTH;
++	// 	break;
++	// case XC_sb_down_arrow:
++	// 	shape = B_CURSOR_ID_RESIZE_SOUTH;
++	// 	break;
++	// case XC_sb_v_double_arrow:
++	// case XC_double_arrow:
++	// 	shape = B_CURSOR_ID_RESIZE_NORTH_SOUTH;
++	// 	break;
++	// case XC_pirate:
++	// 	shape = B_CURSOR_ID_NOT_ALLOWED;
++	// 	break;
++	// case XC_bottom_right_corner:
++	// case XC_top_left_corner:
++	// 	shape = B_CURSOR_ID_RESIZE_NORTH_WEST_SOUTH_EAST;
++	// 	break;
++	// case XC_fleur:
++	// 	shape = B_CURSOR_ID_MOVE;
++	// 	break;
++	// case XC_bottom_left_corner:
++	// case XC_top_right_corner:
++	// 	shape = B_CURSOR_ID_RESIZE_NORTH_EAST_SOUTH_WEST;
++	// 	break;
++	// case XC_left_ptr:
++	// default:
++	// 	shape = B_CURSOR_ID_SYSTEM_DEFAULT;
++	// 	break;
++	// }
++	// return (Cursor)new BCursor(shape);
++    UNIMPLEMENTED();
++    return (XLib::Cursor)0;
+ }
+ 
+-extern "C" Cursor
+-XCreateGlyphCursor(Display *display, Font source_font, Font mask_font,
++extern "C" XLib::Cursor
++XCreateGlyphCursor(XLib::Display *display, XLib::Font source_font, XLib::Font mask_font,
+ 	unsigned int source_char, unsigned int mask_char,
+-	XColor const *foreground_color, XColor const *background_color)
++	XLib::XColor const *foreground_color, XLib::XColor const *background_color)
+ {
+ 	// TODO: other options?
+ 	return XCreateFontCursor(display, source_char);
+ }
+ 
+-extern "C" Cursor
+-XCreatePixmapCursor(Display* display, Pixmap source, Pixmap mask,
+-	XColor* foreground_color, XColor* background_color,
++extern "C" XLib::Cursor
++XCreatePixmapCursor(XLib::Display* display, XLib::Pixmap source, XLib::Pixmap mask,
++	XLib::XColor* foreground_color, XLib::XColor* background_color,
+ 	unsigned int x, unsigned int y)
+ {
+-	XPixmap* src = Drawables::get_pixmap(source);
+-	if (!src)
+-		return None;
+-	src->sync();
++	// XPixmap* src = Drawables::get_pixmap(source);
++	// if (!src)
++	// 	return None;
++	// src->sync();
+ 
+-	// Use XImages to perform the conversion and masking.
+-	const XRectangle rect = xrect_from_brect(src->offscreen()->Bounds());
+-	XImage* srcImg = XGetImage(display, source, 0, 0, rect.width, rect.height, -1, ZPixmap),
+-		*maskImg = XGetImage(display, mask, 0, 0, rect.width, rect.height, -1, ZPixmap),
+-		*resultImg = XCreateImage(display, NULL, 32, ZPixmap, 0, NULL, rect.width, rect.height, 32, 0);
+-	BBitmap* resultBitmap = _bbitmap_for_ximage(resultImg);
+-	if (!srcImg || !maskImg || !resultImg || !resultBitmap) {
+-		if (srcImg)
+-			XDestroyImage(srcImg);
+-		if (maskImg)
+-			XDestroyImage(maskImg);
+-		if (resultImg)
+-			XDestroyImage(resultImg);
+-		return None;
+-	}
+-	resultImg->data = (char*)resultBitmap->Bits();
++	// // Use XImages to perform the conversion and masking.
++	// const XRectangle rect = xrect_from_brect(src->offscreen()->Bounds());
++	// XImage* srcImg = XGetImage(display, source, 0, 0, rect.width, rect.height, -1, ZPixmap),
++	// 	*maskImg = XGetImage(display, mask, 0, 0, rect.width, rect.height, -1, ZPixmap),
++	// 	*resultImg = XCreateImage(display, NULL, 32, ZPixmap, 0, NULL, rect.width, rect.height, 32, 0);
++	// BBitmap* resultBitmap = _bbitmap_for_ximage(resultImg);
++	// if (!srcImg || !maskImg || !resultImg || !resultBitmap) {
++	// 	if (srcImg)
++	// 		XDestroyImage(srcImg);
++	// 	if (maskImg)
++	// 		XDestroyImage(maskImg);
++	// 	if (resultImg)
++	// 		XDestroyImage(resultImg);
++	// 	return None;
++	// }
++	// resultImg->data = (char*)resultBitmap->Bits();
+ 
+-	unsigned long fg = foreground_color->pixel | (0xFF << 24),
+-		bg = background_color->pixel | (0xFF << 24),
+-		transparent = _x_rgb_to_pixel(make_color(0, 0, 0, 0));
+-	for (int iy = 0; iy < rect.height; iy++) {
+-		for (int ix = 0; ix < rect.width; ix++) {
+-			unsigned long pixel = XGetPixel(srcImg, ix, iy),
+-				mask = XGetPixel(maskImg, ix, iy);
+-			XPutPixel(resultImg, ix, iy, !mask ? transparent :
+-				(pixel ? fg : bg));
+-		}
+-	}
++	// unsigned long fg = foreground_color->pixel | (0xFF << 24),
++	// 	bg = background_color->pixel | (0xFF << 24),
++	// 	transparent = _x_rgb_to_pixel(make_color(0, 0, 0, 0));
++	// for (int iy = 0; iy < rect.height; iy++) {
++	// 	for (int ix = 0; ix < rect.width; ix++) {
++	// 		unsigned long pixel = XGetPixel(srcImg, ix, iy),
++	// 			mask = XGetPixel(maskImg, ix, iy);
++	// 		XPutPixel(resultImg, ix, iy, !mask ? transparent :
++	// 			(pixel ? fg : bg));
++	// 	}
++	// }
+ 
+-	BCursor* cursor = new BCursor(resultBitmap, BPoint(x, y));
++	// BCursor* cursor = new BCursor(resultBitmap, BPoint(x, y));
+ 
+-	delete resultBitmap;
+-	resultImg->data = NULL;
+-	XDestroyImage(srcImg);
+-	XDestroyImage(maskImg);
+-	XDestroyImage(resultImg);
+-	return (Cursor)cursor;
++	// delete resultBitmap;
++	// resultImg->data = NULL;
++	// XDestroyImage(srcImg);
++	// XDestroyImage(maskImg);
++	// XDestroyImage(resultImg);
++	// return (Cursor)cursor;
++
++	UNIMPLEMENTED();
++    return (XLib::Cursor)0;
+ }
+ 
+ extern "C" Status
+-XFreeCursor(Display* display, Cursor cursor)
++XFreeCursor(XLib::Display* display, XLib::Cursor cursor)
+ {
+-	delete (BCursor*)cursor;
++	// delete (BCursor*)cursor;
++    UNIMPLEMENTED();
+ 	return Success;
+ }
+ 
+ extern "C" Status
+-XRecolorCursor(Display* display, Cursor cursor, XColor* foreground_color, XColor* background_color)
++XRecolorCursor(XLib::Display* display, XLib::Cursor cursor, XLib::XColor* foreground_color, XLib::XColor* background_color)
+ {
+ 	UNIMPLEMENTED();
+ 	return BadImplementation;
+ }
+ 
+ extern "C" Status
+-XQueryBestCursor(Display* display, Drawable d, unsigned int width, unsigned int height,
++XQueryBestCursor(XLib::Display* display, XLib::Drawable d, unsigned int width, unsigned int height,
+ 	unsigned int* width_return, unsigned int* height_return)
+ {
+ 	if (width_return)
+diff --git a/xlib/Debug.cpp b/xlib/Debug.cpp
+index b7bff7f..360e91b 100644
+--- a/xlib/Debug.cpp
++++ b/xlib/Debug.cpp
+@@ -3,35 +3,13 @@
+  * Copyright 2021, Haiku, Inc. All rights reserved.
+  * Distributed under the terms of the MIT license.
+  */
+-#include "Debug.h"
+-
+-#include <translation/BitmapStream.h>
+-#include <translation/TranslatorRoster.h>
+-#include <interface/Bitmap.h>
+-#include <interface/View.h>
+-#include <storage/File.h>
++#include <AK/Format.h>
+ 
+-#include <cstdio>
++#include "Debug.h"
+ 
+ extern "C" void
+ _x_trace(const char* trace, const char* func)
+ {
+-	fprintf(stderr, "%s: %s\n", trace, func);
++	dbgln("{}: {}\n", trace, func);
+ }
+ 
+-void
+-WriteBitmapToFile(BBitmap* bitmap, const char* filename)
+-{
+-	BBitmap* writeimage = new BBitmap(bitmap->Bounds().OffsetToCopy(0, 0), bitmap->ColorSpace(), true);
+-	BView* view = new BView(bitmap->Bounds().OffsetToCopy(0, 0), NULL, 0, 0);
+-	writeimage->AddChild(view);
+-
+-	writeimage->Lock();
+-	view->DrawBitmap(bitmap);
+-	writeimage->Unlock();
+-
+-	BTranslatorRoster *roster = BTranslatorRoster::Default();
+-	BBitmapStream stream(writeimage);
+-	BFile file(filename, B_CREATE_FILE | B_ERASE_FILE | B_WRITE_ONLY);
+-	roster->Translate(&stream, NULL, NULL, &file, B_PNG_FORMAT);
+-}
+diff --git a/xlib/Debug.h b/xlib/Debug.h
+index 3dc3c7c..e086ecd 100644
+--- a/xlib/Debug.h
++++ b/xlib/Debug.h
+@@ -6,9 +6,6 @@
+ #pragma once
+ 
+ #ifdef __cplusplus
+-class BBitmap;
+-
+-void WriteBitmapToFile(BBitmap* bitmap, const char* filename);
+ 
+ extern "C" {
+ #endif
+diff --git a/xlib/Display.cpp b/xlib/Display.cpp
+index e6b20bd..971f750 100644
+--- a/xlib/Display.cpp
++++ b/xlib/Display.cpp
+@@ -4,14 +4,15 @@
+  * Distributed under the terms of the MIT license.
+  */
+ 
+-#include <unistd.h>
+-#include <cstdio>
+-#include <atomic>
++#include <AK/Atomic.h>
++#include <AK/Format.h>
++#include <AK/Vector.h>
+ 
+-#include <app/Application.h>
+-#include <interface/Screen.h>
+-#include <storage/AppFileInfo.h>
+-#include <private/app/AppMisc.h>
++#include <LibGUI/Desktop.h>
++#include <LibGfx/Color.h>
++#include <LibGfx/Palette.h>
++#include <LibGUI/Application.h>
++#include <LibThreading/Thread.h>
+ 
+ #include "Atom.h"
+ #include "Font.h"
+@@ -20,53 +21,20 @@
+ #include "Event.h"
+ #include "Lock.h"
+ 
++#include <unistd.h>
++
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ #include <X11/Xlibint.h>
+ #include <X11/Xutil.h>
+ }
++}
+ 
+ static int sEnvDummy = setenv("DISPLAY", ":", 0);
+ 
+ static bool sThreads = false;
+-static std::atomic<int32> sOpenDisplays = 0;
+-
+-namespace {
+-
+-class XlibApplication : public BApplication {
+-	Display* _display = NULL;
+-
+-public:
+-	XlibApplication(Display* display, const char* signature);
+-
+-	Display* display() { return _display; }
+-	void display(Display* display) { _display = display; }
+-
+-protected:
+-	void ReadyToRun() override;
+-	void MessageReceived(BMessage* message) override;
+-};
+-
+-XlibApplication::XlibApplication(Display* display, const char* signature)
+-	: BApplication(signature)
+-	, _display(display)
+-{
+-}
+-
+-void
+-XlibApplication::ReadyToRun()
+-{
+-	char dummy[1];
+-	write(_display->conn_checker, dummy, 1);
+-}
+-
+-void
+-XlibApplication::MessageReceived(BMessage* message)
+-{
+-	BApplication::MessageReceived(message);
+-}
+-
+-} // namespace
++static AK::Atomic<int32_t> sOpenDisplays = 0;
+ 
+ extern "C" int
+ XInitThreads()
+@@ -76,134 +44,122 @@ XInitThreads()
+ }
+ 
+ static void
+-x_lock_display(Display* dpy)
++x_lock_display(XLib::Display* dpy)
+ {
+ 	_XLockMutex(dpy->lock);
+ }
+ 
+ static void
+-x_unlock_display(Display* dpy)
++x_unlock_display(XLib::Display* dpy)
+ {
+ 	_XUnlockMutex(dpy->lock);
+ }
+ 
+ static void
+-set_display(Display* dpy)
++set_display(XLib::Display* dpy)
+ {
+-	static Depth dlist[1];
+-	static Visual vlist[1];
+-	static Screen slist[1];
+-	static char vstring[] = "Xlibe";
+-
+-	display_mode mode;
+-	BScreen screen;
+-	screen.GetMode(&mode);
+-
+-	memset(slist, 0, sizeof(Screen));
+-
+-	dlist[0].depth		= _x_depth_for_color_space(screen.ColorSpace());
+-	dlist[0].nvisuals	= 1;
+-	dlist[0].visuals	= vlist;
+-
+-	vlist[0].ext_data     = NULL;
+-	vlist[0].visualid     = 0;
+-	vlist[0].c_class      = TrueColor;
+-	vlist[0].bits_per_rgb = dlist[0].depth;
+-	vlist[0].map_entries  = 256;
+-	_x_get_rgb_masks(&vlist[0]);
+-
+-	const BRect screenFrame = screen.Frame();
+-	slist[0].width       = screenFrame.IntegerWidth();
+-	slist[0].height      = screenFrame.IntegerHeight();
+-	slist[0].mwidth      = screenFrame.Width() * 0.2646;
+-	slist[0].mheight     = screenFrame.Height() * 0.2646;
+-		// TODO: get real mm!
+-	slist[0].ndepths     = 1;
+-	slist[0].depths      = dlist;
+-	slist[0].root_depth  = dlist[0].depth;
+-	slist[0].root_visual = vlist;
+-	slist[0].default_gc  = NULL;
+-	slist[0].cmap        = XCreateColormap(dpy, None, &vlist[0], AllocNone);
+-	slist[0].white_pixel = _x_rgb_to_pixel(make_color(0xFF, 0xFF, 0xFF));
+-	slist[0].black_pixel = _x_rgb_to_pixel(make_color(0, 0, 0));
+-
+-	slist[0].display = dpy;
+-	slist[0].root = 100; /* arbitrary */
+-
+-	dpy->ext_data            = NULL;
+-	dpy->proto_major_version = 11;
+-	dpy->proto_minor_version = 4;
+-	dpy->vendor              = vstring;
+-	dpy->display_name        = vstring;
+-	dpy->nscreens            = 1;
+-	dpy->screens             = slist;
+-	dpy->default_screen		 = 0;
+-	dpy->min_keycode		 = 8;
+-	dpy->max_keycode         = 255;
+-	dpy->max_request_size	 = 4096;
+-	dpy->bigreq_size		 = dpy->max_request_size;
+-	dpy->qlen                = 0;
+-	dpy->request			 = 1;
+-	dpy->head = dpy->tail    = NULL;
+-	dpy->qfree               = NULL;
+-
+-	dpy->free_funcs = (_XFreeFuncRec *)Xcalloc(1, sizeof(_XFreeFuncRec));
+-
+-	if (sThreads) {
+-		dpy->lock = (_XLockInfo*)calloc(1, sizeof(_XLockInfo));
+-		_XCreateMutex(dpy->lock);
+-
+-		dpy->lock_fns = (_XLockPtrs*)calloc(1, sizeof(_XLockPtrs));
+-		dpy->lock_fns->lock_display = x_lock_display;
+-		dpy->lock_fns->unlock_display = x_unlock_display;
+-	}
++    static XLib::Depth dlist[1];
++    static XLib::Visual vlist[1];
++    static XLib::Screen slist[1];
++    static char vstring[] = "LibXEmulator";
++
++    const auto& desktop = GUI::Desktop::the();
++
++    memset(slist, 0, sizeof(XLib::Screen));
++
++    dlist[0].depth      = 24;
++    dlist[0].nvisuals   = 1;
++    dlist[0].visuals    = vlist;
++
++    vlist[0].ext_data     = NULL;
++    vlist[0].visualid     = 0;
++    vlist[0].c_class      = TrueColor;
++    vlist[0].bits_per_rgb = dlist[0].depth;
++    vlist[0].map_entries  = 256;
++    _x_get_rgb_masks(&vlist[0]);
++
++    const auto screenFrame = desktop.rect();
++    slist[0].width       = screenFrame.width();
++    slist[0].height      = screenFrame.height();
++    slist[0].mwidth      = screenFrame.width() * 0.2646;
++    slist[0].mheight     = screenFrame.height() * 0.2646;
++    // TODO: get real mm!
++    slist[0].ndepths     = 1;
++    slist[0].depths      = dlist;
++    slist[0].root_depth  = dlist[0].depth;
++    slist[0].root_visual = vlist;
++    slist[0].default_gc  = NULL;
++    slist[0].cmap        = XCreateColormap(dpy, None, &vlist[0], AllocNone);
++    slist[0].white_pixel = _x_rgb_to_pixel(Color(0xFF, 0xFF, 0xFF));
++    slist[0].black_pixel = _x_rgb_to_pixel(Color(0, 0, 0));
++
++    slist[0].display = dpy;
++    slist[0].root = 100; /* arbitrary */
++
++    dpy->ext_data            = NULL;
++    dpy->proto_major_version = 11;
++    dpy->proto_minor_version = 4;
++    dpy->vendor              = vstring;
++    dpy->display_name        = vstring;
++    dpy->nscreens            = 1;
++    dpy->screens             = slist;
++    dpy->default_screen		 = 0;
++    dpy->min_keycode		 = 8;
++    dpy->max_keycode         = 255;
++    dpy->max_request_size	 = 4096;
++    dpy->bigreq_size		 = dpy->max_request_size;
++    dpy->qlen                = 0;
++    dpy->request			 = 1;
++    dpy->head = dpy->tail    = NULL;
++    dpy->qfree               = NULL;
++
++    dpy->free_funcs = (XLib::_XFreeFuncRec *)Xcalloc(1, sizeof(XLib::_XFreeFuncRec));
++
++    if (sThreads) {
++        dpy->lock = (XLib::_XLockInfo*)calloc(1, sizeof(XLib::_XLockInfo));
++        _XCreateMutex(dpy->lock);
++
++        dpy->lock_fns = (XLib::_XLockPtrs*)calloc(1, sizeof(XLib::_XLockPtrs));
++        dpy->lock_fns->lock_display = x_lock_display;
++        dpy->lock_fns->unlock_display = x_unlock_display;
++    }
+ }
+ 
+-static int32
++static int32_t
+ xmain(void* data)
+ {
+-	Display* display = (Display*)data;
+-
+-	// Figure out what our signature is.
+-	BString signature;
+-	entry_ref appRef;
+-	status_t status = BPrivate::get_app_ref(BPrivate::current_team(), &appRef);
+-	if (status == B_OK) {
+-		BFile file(&appRef, O_RDONLY);
+-		BAppFileInfo info(&file);
+-		status = info.GetSignature(signature.LockBuffer(B_FILE_NAME_LENGTH));
+-		signature.UnlockBuffer();
+-	}
+-	if (status != B_OK || signature.IsEmpty())
+-		signature = "application/x-vnd.Xlibe-unknown";
++	XLib::Display* display = (XLib::Display*)data;
+ 
+-	XlibApplication app(display, signature.String());
+-	app.Run();
++	auto app = MUST(GUI::Application::try_create(0, nullptr, Core::EventLoop::MakeInspectable::No));
++	app->exec();
+ 	return 0;
+ }
+ 
+-extern "C" Display*
++extern "C" XLib::Display*
+ XOpenDisplay(const char* name)
+ {
+ 	if (sOpenDisplays != 0)
+ 		fprintf(stderr, "libX11: warning: application opened more than one X display!\n");
+ 
+-	Display* display = new _XDisplay;
+-	memset(display, 0, sizeof(Display));
++    XLib::Display* display = new XLib::_XDisplay;
++    memset(display, 0, sizeof(XLib::Display));
+ 
+ 	int eventsPipe[2];
+ 	pipe(eventsPipe);
+ 	display->fd = eventsPipe[0];
+ 	display->conn_checker = eventsPipe[1];
+ 
+-	if (!be_app) {
+-		thread_id appThread = spawn_thread(xmain, "Xlibe BApplication", B_NORMAL_PRIORITY, display);
+-		resume_thread(appThread);
++	// if (!be_app) {
++		auto appThread = Threading::Thread::construct([&] {
++			return xmain(display);
++		});
+ 
+-		// Wait for BApplication startup to complete.
+-		char dummy[1];
+-		read(display->fd, dummy, 1);
+-	}
++		appThread->start();
++
++		// // Wait for BApplication startup to complete.
++		// char dummy[1];
++		// read(display->fd, dummy, 1);
++	// }
+ 
+ 	set_display(display);
+ 	_x_init_atoms();
+@@ -214,20 +170,20 @@ XOpenDisplay(const char* name)
+ }
+ 
+ extern "C" int
+-XCloseDisplay(Display* display)
++XLib::XCloseDisplay(Display* display)
+ {
+ 	sOpenDisplays--;
+ 
+-	XlibApplication* xapp = dynamic_cast<XlibApplication*>(be_app);
+-	if (xapp) {
+-		if (sOpenDisplays == 0) {
+-			status_t result;
+-			be_app->PostMessage(B_QUIT_REQUESTED);
+-			wait_for_thread(xapp->Thread(), &result);
+-		} else if (xapp->display() == display) {
+-			xapp->display(display);
+-		}
+-	}
++	// XlibApplication* xapp = dynamic_cast<XlibApplication*>(be_app);
++	// if (xapp) {
++	// 	if (sOpenDisplays == 0) {
++	// 		status_t result;
++	// 		be_app->PostMessage(B_QUIT_REQUESTED);
++	// 		wait_for_thread(xapp->Thread(), &result);
++	// 	} else if (xapp->display() == display) {
++	// 		xapp->display(display);
++	// 	}
++	// }
+ 
+ 	_x_extensions_close(display);
+ 	_x_finalize_events(display);
+@@ -245,7 +201,7 @@ XCloseDisplay(Display* display)
+ }
+ 
+ static void
+-fill_visual_info(Visual* v, XVisualInfo* info)
++fill_visual_info(XLib::Visual* v, XLib::XVisualInfo* info)
+ {
+ 	info->visual = v;
+ 	info->visualid = info->visual->visualid;
+@@ -259,8 +215,8 @@ fill_visual_info(Visual* v, XVisualInfo* info)
+ 	info->blue_mask = info->visual->blue_mask;
+ }
+ 
+-extern "C" XVisualInfo*
+-XGetVisualInfo(Display *display, long vinfo_mask, XVisualInfo *vinfo_template, int *nitems_return)
++extern "C" XLib::XVisualInfo*
++XLib::XGetVisualInfo(Display *display, long vinfo_mask, XVisualInfo *vinfo_template, int *nitems_return)
+ {
+ 	XVisualInfo* info = (XVisualInfo*)calloc(1, sizeof(XVisualInfo));
+ 	fill_visual_info(DefaultVisual(display, 0), info);
+@@ -293,22 +249,22 @@ XGetVisualInfo(Display *display, long vinfo_mask, XVisualInfo *vinfo_template, i
+ }
+ 
+ extern "C" int
+-XMatchVisualInfo(Display* display, int screen, int depth, int c_class, XVisualInfo* vinfo_return)
++XLib::XMatchVisualInfo(Display* display, int screen, int depth, int c_class, XVisualInfo* vinfo_return)
+ {
+ 	if (screen >= display->nscreens)
+ 		return 0;
+-	const Screen& scr = display->screens[screen];
++	const XLib::Screen& scr = display->screens[screen];
+ 	for (int i = 0; i < scr.ndepths; i++) {
+ 		const Depth& dpth = scr.depths[i];
+ 		if (dpth.depth != depth)
+ 			continue;
+ 
+ 		for (int j = 0; j < dpth.nvisuals; j++) {
+-			const Visual& vis = dpth.visuals[j];
++			const XLib::Visual& vis = dpth.visuals[j];
+ 			if (vis.c_class != c_class)
+ 				continue;
+ 
+-			fill_visual_info((Visual*)&vis, vinfo_return);
++			fill_visual_info((XLib::Visual*)&vis, vinfo_return);
+ 			vinfo_return->screen = screen;
+ 			return 1;
+ 		}
+@@ -317,7 +273,7 @@ XMatchVisualInfo(Display* display, int screen, int depth, int c_class, XVisualIn
+ }
+ 
+ extern "C" int
+-XQueryBestSize(Display *dpy, int c_class, Drawable drawable, unsigned int width, unsigned int height,
++XLib::XQueryBestSize(Display *dpy, int c_class, Drawable drawable, unsigned int width, unsigned int height,
+ 	unsigned int* width_return, unsigned int* height_return)
+ {
+ 	*width_return = width;
+@@ -326,7 +282,7 @@ XQueryBestSize(Display *dpy, int c_class, Drawable drawable, unsigned int width,
+ }
+ 
+ extern "C" int
+-XScreenNumberOfScreen(Screen* screen)
++XLib::XScreenNumberOfScreen(Screen* screen)
+ {
+ 	for (int i = 0; i < screen->display->nscreens; i++) {
+ 		if (&screen->display->screens[i] == screen)
+diff --git a/xlib/Drawables.cpp b/xlib/Drawables.cpp
+deleted file mode 100644
+index f3b9e15..0000000
+--- a/xlib/Drawables.cpp
++++ /dev/null
+@@ -1,868 +0,0 @@
+-/*
+- * Copyright 2021, Haiku, Inc. All rights reserved.
+- * Distributed under the terms of the MIT license.
+- */
+-#define XLIBE_DRAWABLES_PROTECTED public
+-#include "Drawables.h"
+-
+-#include <interface/Bitmap.h>
+-#include <interface/Screen.h>
+-
+-#include <set>
+-#include <atomic>
+-
+-#include "Atom.h"
+-#include "Color.h"
+-#include "Keyboard.h"
+-#include "Event.h"
+-#include "Drawing.h"
+-#include "Locking.h"
+-
+-namespace BeXlib {
+-
+-// statics
+-pthread_rwlock_t Drawables::lock = PTHREAD_RWLOCK_INITIALIZER;
+-std::map<Drawable, XDrawable*> Drawables::drawables;
+-Drawable Drawables::last = 100000;
+-
+-static std::atomic<XWindow*> sFocusedWindow, sPointerWindow;
+-static XWindow* sPointerGrabWindow = NULL;
+-
+-Drawable
+-Drawables::add(XDrawable* drawable)
+-{
+-	if (last <= DefaultRootWindow(drawable->display()))
+-		debugger("IDs wrapped?!");
+-
+-	PthreadWriteLocker wrlock(lock);
+-	last++;
+-	drawables[last] = drawable;
+-	return last;
+-}
+-
+-void
+-Drawables::erase(Drawable id)
+-{
+-	PthreadWriteLocker wrlock(lock);
+-	drawables.erase(id);
+-}
+-
+-XDrawable*
+-Drawables::get(Drawable id)
+-{
+-	if (id == None)
+-		return NULL;
+-
+-	PthreadReadLocker rdlock(lock);
+-	auto drawable = drawables.find(id);
+-	if (drawable == drawables.end())
+-		return NULL;
+-	return drawable->second;
+-}
+-
+-XWindow*
+-Drawables::get_window(Drawable id)
+-{
+-	return dynamic_cast<XWindow*>(get(id));
+-}
+-
+-XPixmap*
+-Drawables::get_pixmap(Drawable id)
+-{
+-	return dynamic_cast<XPixmap*>(get(id));
+-}
+-
+-XWindow*
+-Drawables::focused()
+-{
+-	return sFocusedWindow;
+-}
+-
+-XWindow*
+-Drawables::pointer()
+-{
+-	return sPointerWindow;
+-}
+-
+-XWindow*
+-Drawables::pointer_grab()
+-{
+-	return sPointerGrabWindow;
+-}
+-
+-static void
+-Drawables_defocus(XWindow* window)
+-{
+-	sFocusedWindow.compare_exchange_weak(window, nullptr);
+-}
+-
+-// #pragma mark - XDrawable
+-
+-XDrawable::XDrawable(Display* dpy, BRect rect)
+-	: BView(rect, "XDrawable", 0, B_WILL_DRAW | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE)
+-	, _display(dpy)
+-	, _id(Drawables::add(this))
+-	, _base_size(rect.Size())
+-{
+-	resize(rect.Size());
+-}
+-
+-XDrawable::~XDrawable()
+-{
+-	XFreeGC(_display, default_gc);
+-	delete scratch_bitmap;
+-	Drawables::erase(id());
+-	remove();
+-}
+-
+-bool
+-XDrawable::resize(BSize newSize)
+-{
+-	if (Window())
+-		LockLooper();
+-
+-	if (Bounds().Size() == newSize) {
+-		if (Window())
+-			UnlockLooper();
+-		return false; // Nothing to do.
+-	}
+-	_base_size = newSize;
+-	ResizeTo(_base_size);
+-
+-	if (Window())
+-		UnlockLooper();
+-	return true;
+-}
+-
+-Drawable
+-XDrawable::parent() const
+-{
+-	XDrawable* parent = dynamic_cast<XDrawable*>(Parent());
+-	if (parent)
+-		return parent->id();
+-
+-	// Check if we are a "root window."
+-	const XWindow* self = dynamic_cast<const XWindow*>(this);
+-	if (self && self->bwindow)
+-		return DefaultRootWindow(display());
+-
+-	return None;
+-}
+-
+-std::list<Drawable>
+-XDrawable::children() const
+-{
+-	std::list<Drawable> ret;
+-	for (int i = 0; i < CountChildren(); i++) {
+-		XDrawable* child = dynamic_cast<XDrawable*>(ChildAt(i));
+-		if (child)
+-			ret.push_back(child->id());
+-	}
+-	return ret;
+-}
+-
+-void
+-XDrawable::contains(const BPoint& point, Drawable& win)
+-{
+-	LockLooper();
+-	int max = CountChildren();
+-	if (Frame().Contains(point))
+-		win = id();
+-	for (int i = 0; i != max; i++) {
+-		XDrawable* drawable = dynamic_cast<XDrawable*>(ChildAt(i));
+-		if (drawable)
+-			drawable->contains(point, win);
+-	}
+-	UnlockLooper();
+-}
+-
+-void
+-XDrawable::remove()
+-{
+-	if (Window() || Parent()) {
+-		BWindow* window = Window();
+-		if (window)
+-			window->LockLooper();
+-		RemoveSelf();
+-		if (window)
+-			window->UnlockLooper();
+-	}
+-}
+-
+-// #pragma mark - XWindow
+-
+-namespace {
+-
+-#undef RootWindow
+-class RootWindow : public BWindow {
+-	friend class ::BeXlib::XWindow;
+-
+-	XWindow* _window;
+-	std::set<Atom> _protocols;
+-
+-public:
+-	RootWindow(BRect frame, XWindow* window)
+-		: BWindow(frame, "*****", B_TITLED_WINDOW, 0, B_CURRENT_WORKSPACE)
+-		, _window(window)
+-	{
+-	}
+-
+-	virtual void Show() override;
+-	virtual void Hide() override;
+-
+-protected:
+-	virtual void DispatchMessage(BMessage* message, BHandler* target) override;
+-
+-	virtual void FrameMoved(BPoint to) override;
+-	virtual void FrameResized(float newWidth, float newHeight) override;
+-
+-	virtual bool QuitRequested() override;
+-};
+-
+-void
+-RootWindow::Show()
+-{
+-	if (!IsHidden())
+-		return;
+-	BWindow::Show();
+-
+-	LockLooper();
+-	if (!CurrentFocus())
+-		_window->view()->MakeFocus(true);
+-	UnlockLooper();
+-
+-	// Adjust so that the window border is not offscreen, if necessary.
+-	if (Frame().LeftTop() == BPoint(0, 0) && Look() != B_NO_BORDER_WINDOW_LOOK)
+-		MoveOnScreen(B_MOVE_IF_PARTIALLY_OFFSCREEN | B_DO_NOT_RESIZE_TO_FIT);
+-}
+-
+-void
+-RootWindow::Hide()
+-{
+-	if (IsHidden())
+-		return;
+-	BWindow::Hide();
+-}
+-
+-void
+-RootWindow::DispatchMessage(BMessage* message, BHandler* handler)
+-{
+-	switch (message->what) {
+-	case B_KEY_DOWN:
+-	case B_KEY_UP: {
+-		// Bypass all of BWindow's special key event handling.
+-		uint32 raw_char = message->FindInt32("raw_char");
+-		uint32 key = message->FindInt32("key");
+-		uint32 modifiers = message->FindInt32("modifiers");
+-
+-		// Special case: Don't bypass on CNTRL+Tab.
+-		if (raw_char == B_TAB && (modifiers & B_CONTROL_KEY))
+-			break;
+-		// Special case: Don't bypass on PrntScrn.
+-		if (raw_char == B_FUNCTION_KEY && key == B_PRINT_KEY)
+-			break;
+-
+-		handler->MessageReceived(message);
+-		return;
+-	}
+-	}
+-
+-	BWindow::DispatchMessage(message, handler);
+-}
+-
+-void
+-RootWindow::FrameMoved(BPoint to)
+-{
+-	BWindow::FrameMoved(to);
+-
+-	_window->view()->FrameMoved(_window->view()->Frame().LeftTop());
+-}
+-
+-void
+-RootWindow::FrameResized(float newWidth, float newHeight)
+-{
+-	BWindow::FrameResized(newWidth, newHeight);
+-
+-	_window->view()->ResizeTo(newWidth, newHeight);
+-}
+-
+-bool
+-RootWindow::QuitRequested()
+-{
+-	if (_protocols.count(Atoms::WM_DELETE_WINDOW)) {
+-		// Do not hide at all, but send a delete-window event.
+-		XEvent event = {};
+-		event.type = ClientMessage;
+-		event.xclient.window = _window->id();
+-		event.xclient.message_type = Atoms::WM_PROTOCOLS;
+-		event.xclient.format = 32;
+-		event.xclient.data.l[0] = Atoms::WM_DELETE_WINDOW;
+-		event.xclient.data.l[1] = _x_current_time();
+-		_x_put_event(_window->display(), event);
+-		return false;
+-	}
+-
+-	Hide();
+-	return false;
+-}
+-
+-}
+-
+-XWindow::XWindow(Display* dpy, BRect rect)
+-	: XDrawable(dpy, rect)
+-	, _bg_color(_x_pixel_to_rgb(0))
+-	, _border_color(_x_pixel_to_rgb(0))
+-	, _border_width(0)
+-{
+-	resize(rect.Size());
+-}
+-
+-XWindow::~XWindow()
+-{
+-	if (sPointerGrabWindow == this)
+-		ungrab_pointer();
+-
+-	// Delete all children before sending our own DestroyNotify.
+-	LockLooper();
+-	while (CountChildren())
+-		delete ChildAt(0);
+-	UnlockLooper();
+-
+-	const bool selfNotify = (event_mask() & StructureNotifyMask);
+-	if (selfNotify || (parent_window() && (parent_window()->event_mask() & SubstructureNotifyMask))) {
+-		XEvent event = {};
+-		event.type = DestroyNotify;
+-		event.xdestroywindow.event = selfNotify ? id() : parent();
+-		event.xdestroywindow.window = id();
+-		_x_put_event(display(), event);
+-	}
+-
+-	Drawables_defocus(this);
+-	remove();
+-
+-	if (bwindow) {
+-		bwindow->LockLooper();
+-		bwindow->Quit();
+-	}
+-}
+-
+-std::list<XWindow*>
+-XWindow::child_windows()
+-{
+-	std::list<XWindow*> windows;
+-	for (int i = 0; i < CountChildren(); i++) {
+-		XWindow* child = dynamic_cast<XWindow*>(ChildAt(i));
+-		if (!child)
+-			continue;
+-		windows.push_back(child);
+-	}
+-	return windows;
+-}
+-
+-XWindow*
+-XWindow::parent_window()
+-{
+-	return dynamic_cast<XWindow*>(Parent());
+-}
+-
+-void
+-XWindow::create_bwindow()
+-{
+-	if (bwindow) {
+-		debugger("Already have a BWindow.");
+-		return;
+-	}
+-
+-	BWindow* rootWindow = new RootWindow(Frame(), this);
+-	bwindow = rootWindow;
+-	MoveTo(0, 0);
+-	rootWindow->AddChild(this);
+-}
+-
+-void
+-XWindow::border_width(int border_width)
+-{
+-	_border_width = border_width;
+-	resize(_base_size);
+-}
+-
+-void
+-XWindow::background_pixel(long bg)
+-{
+-	_bg_color = _x_pixel_to_rgb(bg);
+-}
+-
+-void
+-XWindow::border_pixel(long border_color)
+-{
+-	LockLooper();
+-	_border_color = _x_pixel_to_rgb(border_color);
+-	Invalidate();
+-	UnlockLooper();
+-}
+-
+-color_space
+-XWindow::colorspace()
+-{
+-	return BScreen(Window()).ColorSpace();
+-}
+-
+-bool
+-XWindow::resize(BSize newSize)
+-{
+-	// We intentionally do not invoke the base implementation at all here.
+-
+-	if (Window())
+-		LockLooper();
+-
+-	BSize borderedSize = newSize;
+-	borderedSize.width += _border_width * 2;
+-	borderedSize.height += _border_width * 2;
+-	if (Bounds().Size() == borderedSize) {
+-		if (Window())
+-			UnlockLooper();
+-		return false; // Nothing to do.
+-	}
+-	_base_size = newSize;
+-
+-	ResizeTo(borderedSize);
+-	if (bwindow)
+-		bwindow->ResizeTo(borderedSize.Width(), borderedSize.Height());
+-
+-	if (Window())
+-		UnlockLooper();
+-	return true;
+-}
+-
+-void
+-XWindow::draw_border(BRect clipRect)
+-{
+-	LockLooper();
+-	const BPoint baseOrigin(_border_width, _border_width);
+-	SetOrigin(baseOrigin);
+-	PushState();
+-	SetOrigin(-baseOrigin);
+-	SetDrawingMode(B_OP_COPY);
+-
+-	ClipToRect(clipRect);
+-	SetHighColor(_bg_color);
+-	if (_border_width != 0) {
+-		SetPenSize(_border_width);
+-		float w = _border_width / 2;
+-		BRect frame = Frame();
+-		BRect drawframe(w, w, frame.Width() - w, frame.Height() - w);
+-		FillRect(drawframe);
+-		SetHighColor(_border_color);
+-		StrokeRect(drawframe);
+-	} else {
+-		FillRect(Frame());
+-	}
+-
+-	PopState();
+-	UnlockLooper();
+-}
+-
+-void
+-XWindow::event_mask(long mask)
+-{
+-	_event_mask = mask;
+-}
+-
+-void
+-XWindow::set_protocols(Atom* protocols, int count)
+-{
+-	RootWindow* window = static_cast<RootWindow*>(bwindow);
+-	window->_protocols.clear();
+-	for (int i = 0; i < count; i++)
+-		window->_protocols.insert(protocols[i]);
+-}
+-
+-void
+-XWindow::grab_pointer(long mask)
+-{
+-	if (sPointerGrabWindow != NULL)
+-		debugger("pointer already grabbed");
+-
+-	sPointerGrabWindow = this;
+-
+-	LockLooper();
+-	SetEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
+-
+-	_prior_event_mask = _event_mask;
+-	grab_event_mask(mask);
+-
+-	BPoint location;
+-	GetMouse(&location, NULL, false);
+-	_MouseCrossing(EnterNotify, location, NotifyGrab);
+-	UnlockLooper();
+-}
+-
+-void
+-XWindow::grab_event_mask(long mask)
+-{
+-	if (sPointerGrabWindow != this)
+-		debugger("Not the grab window!");
+-
+-	_event_mask = mask;
+-}
+-
+-void
+-XWindow::ungrab_pointer()
+-{
+-	if (sPointerGrabWindow != this)
+-		return;
+-
+-	LockLooper();
+-
+-	// We have to call twice: first to unset the mask, then to add the option.
+-	SetEventMask(0, 0);
+-	SetEventMask(0, B_NO_POINTER_HISTORY);
+-
+-	_event_mask = _prior_event_mask;
+-	sPointerGrabWindow = NULL;
+-
+-	BPoint location;
+-	GetMouse(&location, NULL, false);
+-	_MouseCrossing(LeaveNotify, location, NotifyUngrab);
+-	UnlockLooper();
+-}
+-
+-void
+-XWindow::MessageReceived(BMessage* message)
+-{
+-	switch (message->what) {
+-	case B_MOUSE_WHEEL_CHANGED: {
+-		float deltaY = 0.0f;
+-		message->FindFloat("be:wheel_delta_y", &deltaY);
+-		if (deltaY == 0)
+-			break;
+-
+-		BPoint where;
+-		GetMouse(&where, NULL, false);
+-		int button = deltaY < 0 ? 4 : 5;
+-		_MouseEvent(ButtonPress, where, button);
+-		_MouseEvent(ButtonRelease, where, button);
+-	} break;
+-	}
+-
+-	BView::MessageReceived(message);
+-}
+-
+-void
+-XWindow::Draw(BRect rect)
+-{
+-	if (Flags() & B_DRAW_ON_CHILDREN)
+-		return;
+-
+-	_Expose(rect);
+-}
+-
+-void
+-XWindow::DrawAfterChildren(BRect rect)
+-{
+-	if (!(Flags() & B_DRAW_ON_CHILDREN))
+-		return;
+-
+-	_Expose(rect);
+-}
+-
+-void
+-XWindow::_Expose(BRect rect)
+-{
+-	if (!(event_mask() & ExposureMask))
+-		return;
+-
+-	draw_border(rect);
+-
+-	XEvent event;
+-	XRectangle exposed = xrect_from_brect(rect);
+-	event.type = Expose;
+-	event.xany.window = id();
+-	event.xexpose.x = exposed.x;
+-	event.xexpose.y = exposed.y;
+-	event.xexpose.width = exposed.width;
+-	event.xexpose.height = exposed.height;
+-	event.xexpose.count = 0;
+-	_x_put_event(display(), event);
+-}
+-
+-void
+-XWindow::FrameMoved(BPoint)
+-{
+-	_Configured();
+-}
+-
+-void
+-XWindow::FrameResized(float, float)
+-{
+-	_Configured();
+-}
+-
+-void
+-XWindow::_Configured()
+-{
+-	_base_size = BSize(Frame().Width() - (_border_width * 2),
+-		Frame().Height() - (_border_width * 2));
+-
+-	const bool selfNotify = (event_mask() & StructureNotifyMask);
+-	if (!selfNotify && !(parent_window() && (parent_window()->event_mask() & SubstructureNotifyMask)))
+-		return;
+-
+-	int x = Frame().LeftTop().x, y = Frame().LeftTop().y;
+-	if (bwindow) {
+-		x = bwindow->Frame().LeftTop().x;
+-		y = bwindow->Frame().LeftTop().y;
+-	}
+-
+-	Drawable above = None;
+-	if (PreviousSibling()) {
+-		XDrawable* previous = dynamic_cast<XDrawable*>(PreviousSibling());
+-		if (previous)
+-			above = previous->id();
+-	}
+-
+-	XEvent event = {};
+-	XRectangle xrect = xrect_from_brect(BRect(BPoint(x, y), _base_size));
+-	event.type = ConfigureNotify;
+-	event.xconfigure.event = selfNotify ? id() : parent();
+-	event.xconfigure.window = id();
+-	event.xconfigure.x = xrect.x;
+-	event.xconfigure.y = xrect.y;
+-	event.xconfigure.width = xrect.width;
+-	event.xconfigure.height = xrect.height;
+-	event.xconfigure.border_width = border_width();
+-	event.xconfigure.above = above;
+-	event.xconfigure.override_redirect = override_redirect;
+-	_x_put_event(display(), event);
+-}
+-
+-void
+-XWindow::MakeFocus(bool focus)
+-{
+-	if (focus == IsFocus())
+-		return;
+-	BView::MakeFocus(focus);
+-
+-	if (!focus || Window()->IsActive())
+-		_Focus(focus);
+-}
+-
+-void
+-XWindow::WindowActivated(bool active)
+-{
+-	if (!active || (active && (IsFocus() != current_focus)))
+-		_Focus(active && IsFocus());
+-}
+-
+-void
+-XWindow::_Focus(bool focus)
+-{
+-	if (focus == current_focus)
+-		return;
+-
+-	if (!focus && Drawables::focused() == this)
+-		Drawables_defocus(this);
+-	else if (focus)
+-		sFocusedWindow = this;
+-	current_focus = focus;
+-
+-	if (!(event_mask() & FocusChangeMask))
+-		return;
+-
+-	XEvent event = {};
+-	event.type = focus ? FocusIn : FocusOut;
+-	event.xfocus.window = id();
+-	event.xfocus.mode = NotifyNormal;
+-	event.xfocus.detail = NotifyDetailNone;
+-	_x_put_event(display(), event);
+-}
+-
+-void
+-XWindow::MouseDown(BPoint point)
+-{
+-	MakeFocus(true);
+-
+-	if (!(event_mask() & ButtonPressMask))
+-		return;
+-
+-	_MouseEvent(ButtonPress, point);
+-}
+-
+-void
+-XWindow::MouseUp(BPoint point)
+-{
+-	if (!(event_mask() & ButtonReleaseMask))
+-		return;
+-
+-	_MouseEvent(ButtonRelease, point);
+-}
+-
+-void
+-XWindow::MouseMoved(BPoint where, uint32 transit, const BMessage* dragMessage)
+-{
+-	if (transit == B_ENTERED_VIEW || transit == B_EXITED_VIEW) {
+-		if (transit == B_ENTERED_VIEW) {
+-			sPointerWindow = this;
+-		} else if (transit == B_EXITED_VIEW) {
+-			XWindow* compare = this;
+-			sPointerWindow.compare_exchange_weak(compare, nullptr);
+-		}
+-
+-		if (transit == B_ENTERED_VIEW && !(event_mask() & EnterWindowMask))
+-			return;
+-		if (transit == B_EXITED_VIEW && !(event_mask() & LeaveWindowMask))
+-			return;
+-
+-		_MouseCrossing(transit == B_ENTERED_VIEW ? EnterNotify : LeaveNotify, where);
+-	} else {
+-		if (!(event_mask() & PointerMotionMask))
+-			return;
+-
+-		_MouseEvent(MotionNotify, where);
+-	}
+-}
+-
+-void
+-XWindow::_MouseCrossing(int type, BPoint point, int mode)
+-{
+-	if (sPointerGrabWindow && sPointerGrabWindow != this)
+-		return;
+-
+-	// TODO: Is this logic correct for child windows?
+-
+-	BPoint screenPt = ConvertToScreen(point);
+-
+-	XEvent event = {};
+-	event.type = type;
+-	event.xany.window = id();
+-	event.xcrossing.root = DefaultRootWindow(display());
+-	event.xcrossing.time = _x_current_time();
+-	event.xcrossing.x = (int)point.x;
+-	event.xcrossing.y = (int)point.y;
+-	event.xcrossing.x_root = (int)screenPt.x;
+-	event.xcrossing.y_root = (int)screenPt.y;
+-	event.xcrossing.mode = mode;
+-	event.xcrossing.focus = current_focus;
+-	_x_put_event(display(), event);
+-}
+-
+-void
+-XWindow::_MouseEvent(int type, BPoint point, int extraButton)
+-{
+-	if (sPointerGrabWindow && sPointerGrabWindow != this)
+-		return;
+-
+-	// TODO: Is this logic correct for child windows?
+-
+-	BMessage* message = Window()->CurrentMessage();
+-	int32 buttons = 0;
+-	message->FindInt32("buttons", &buttons);
+-	BPoint screenPt = ConvertToScreen(point);
+-
+-	if (type == ButtonRelease)
+-		buttons = last_buttons & ~buttons;
+-
+-	XEvent event = {};
+-	event.type = type;
+-	event.xbutton.window = id();
+-	event.xbutton.root = DefaultRootWindow(display());
+-	contains(point, event.xbutton.subwindow);
+-	event.xbutton.time = _x_current_time();
+-	event.xbutton.x = (int)point.x;
+-	event.xbutton.y = (int)point.y;
+-	event.xbutton.x_root = (int)screenPt.x;
+-	event.xbutton.y_root = (int)screenPt.y;
+-	event.xbutton.state = _x_get_button_state(message);
+-	if (buttons & B_MOUSE_BUTTON(2))
+-		event.xbutton.button = 3;
+-	if (buttons & B_MOUSE_BUTTON(3))
+-		event.xbutton.button = 2;
+-	if (buttons & B_MOUSE_BUTTON(1))
+-		event.xbutton.button = 1;
+-	if (extraButton)
+-		event.xbutton.button = extraButton;
+-	_x_put_event(display(), event);
+-	last_buttons = buttons;
+-}
+-
+-void
+-XWindow::KeyDown(const char* bytes, int32 numBytes)
+-{
+-	if (!(event_mask() & KeyPressMask))
+-		return;
+-
+-	_KeyEvent(KeyPress, bytes, numBytes);
+-}
+-
+-void
+-XWindow::KeyUp(const char* bytes, int32 numBytes)
+-{
+-	if (!(event_mask() & KeyPressMask))
+-		return;
+-
+-	_KeyEvent(KeyRelease, bytes, numBytes);
+-}
+-
+-void
+-XWindow::_KeyEvent(int type, const char* bytes, int32 numBytes)
+-{
+-	BMessage* message = Looper()->CurrentMessage();
+-
+-	XEvent event = {};
+-	event.type = type;
+-	event.xkey.window = id();
+-	event.xkey.time = _x_current_time();
+-	_x_fill_key_event(&event, message, bytes, numBytes);
+-	_x_put_event(display(), event);
+-}
+-
+-// #pragma mark - XPixmap
+-
+-XPixmap::XPixmap(Display* dpy, BRect frame, unsigned int depth)
+-	: XDrawable(dpy, frame)
+-	, _depth((depth < 8) ? 8 : depth)
+-{
+-	resize(frame.Size());
+-}
+-
+-XPixmap::~XPixmap()
+-{
+-	_offscreen->Lock();
+-	RemoveSelf();
+-	_offscreen->Unlock();
+-
+-	delete _offscreen;
+-}
+-
+-color_space
+-XPixmap::colorspace()
+-{
+-	return _offscreen->ColorSpace();
+-}
+-
+-bool
+-XPixmap::resize(BSize newSize)
+-{
+-	if (!XDrawable::resize(newSize) && _offscreen != NULL)
+-		return false;
+-
+-	if (_offscreen) {
+-		RemoveSelf();
+-		delete _offscreen;
+-	}
+-
+-	_offscreen = new BBitmap(Frame(), _x_color_space_for(NULL, _depth), true);
+-	memset(_offscreen->Bits(), 0, _offscreen->BitsLength());
+-	_offscreen->AddChild(this);
+-	return true;
+-}
+-
+-void
+-XPixmap::sync()
+-{
+-	LockLooper();
+-	Sync();
+-	UnlockLooper();
+-}
+-
+-} // namespace BeXlib
+diff --git a/xlib/Drawables.h b/xlib/Drawables.h
+deleted file mode 100644
+index 5a4a3e9..0000000
+--- a/xlib/Drawables.h
++++ /dev/null
+@@ -1,182 +0,0 @@
+-/*
+- * Copyright 2021, Haiku, Inc. All rights reserved.
+- * Distributed under the terms of the MIT license.
+- */
+-#pragma once
+-
+-#include <interface/View.h>
+-#include <interface/Window.h>
+-
+-#include <map>
+-#include <list>
+-
+-#include "Event.h"
+-
+-extern "C" {
+-#include <X11/Xlib.h>
+-#include <X11/Xutil.h>
+-}
+-
+-namespace BeXlib {
+-
+-#ifndef XLIBE_DRAWABLES_PROTECTED
+-#define XLIBE_DRAWABLES_PROTECTED protected
+-#endif
+-
+-// Predeclarations
+-class XDrawable;
+-class XWindow;
+-class XPixmap;
+-
+-class Drawables {
+-private:
+-	static pthread_rwlock_t lock;
+-	static std::map<Window, XDrawable*> drawables;
+-	static Drawable last;
+-
+-public:
+-	static XDrawable* get(Drawable id);
+-	static XWindow* get_window(Window id);
+-	static XPixmap* get_pixmap(Pixmap id);
+-
+-	static XWindow* focused();
+-	static XWindow* pointer();
+-	static XWindow* pointer_grab();
+-
+-private:
+-	friend class XDrawable;
+-
+-	static Drawable add(XDrawable* drawable);
+-	static void erase(Drawable id);
+-};
+-
+-/* We do not want the BView members of this class accessible except through view();
+- * but on the other hand, we also need to be able to dynamic_cast<> from BView,
+- * which is only possible if the class inherits publicly. Ugh. */
+-class XDrawable : XLIBE_DRAWABLES_PROTECTED BView {
+-private:
+-	Display*const _display;
+-	Drawable _id;
+-
+-protected:
+-	BSize _base_size;
+-
+-public:
+-	GC gc = NULL;
+-	GC default_gc = NULL;
+-
+-	BBitmap* scratch_bitmap = NULL;
+-
+-public:
+-	XDrawable(Display* dpy, BRect rect);
+-	virtual ~XDrawable() override;
+-
+-	BView* view() { return this; }
+-	virtual color_space colorspace() = 0;
+-
+-	Display* display() const { return _display; }
+-	Drawable id() const { return _id; }
+-
+-	BSize size() { return _base_size; }
+-	virtual bool resize(BSize newSize);
+-
+-	Drawable parent() const;
+-	std::list<Drawable> children() const;
+-	void contains(const BPoint &point, ::Window& win);
+-
+-	void remove();
+-};
+-
+-class XWindow : public XDrawable {
+-private:
+-	rgb_color _bg_color;
+-	rgb_color _border_color;
+-	int _border_width;
+-
+-	long _prior_event_mask = 0;
+-	long _event_mask = 0;
+-	int last_buttons = 0;
+-	bool current_focus = false;
+-
+-public:
+-	BWindow* bwindow = NULL;
+-
+-	bool override_redirect = false;
+-	::Window transient_for = None;
+-
+-public:
+-	XWindow(Display* dpy, BRect rect);
+-	virtual ~XWindow() override;
+-
+-	std::list<XWindow*> child_windows();
+-	XWindow* parent_window();
+-
+-	void create_bwindow();
+-
+-	virtual color_space colorspace() override;
+-
+-	virtual bool resize(BSize newSize) override;
+-
+-	int border_width() { return _border_width; }
+-	void border_width(int border_width);
+-	void background_pixel(long bg);
+-	void border_pixel(long border_color);
+-	void draw_border(BRect clipRect);
+-
+-	long event_mask() { return _event_mask; }
+-	void event_mask(long mask);
+-
+-	void set_protocols(Atom* protocols, int count);
+-
+-	void grab_pointer(long mask);
+-	void grab_event_mask(long mask);
+-	void ungrab_pointer();
+-
+-protected:
+-	virtual void MessageReceived(BMessage* msg) override;
+-
+-	virtual void Draw(BRect rect) override;
+-	virtual void DrawAfterChildren(BRect rect) override;
+-	void _Expose(BRect rect);
+-
+-	virtual void FrameMoved(BPoint to) override;
+-	virtual void FrameResized(float newWidth, float newHeight) override;
+-	void _Configured();
+-
+-	virtual void MakeFocus(bool focus) override;
+-	virtual void WindowActivated(bool active) override;
+-	void _Focus(bool focus);
+-
+-	virtual void MouseDown(BPoint point) override;
+-	virtual void MouseUp(BPoint point) override;
+-	virtual void MouseMoved(BPoint where, uint32 transit, const BMessage* dragMessage) override;
+-	void _MouseCrossing(int type, BPoint point, int mode = NotifyNormal);
+-	void _MouseEvent(int type, BPoint point, int extraButton = 0);
+-
+-	virtual	void KeyDown(const char* bytes, int32 numBytes) override;
+-	virtual	void KeyUp(const char* bytes, int32 numBytes) override;
+-	void _KeyEvent(int type, const char* bytes, int32 numBytes);
+-};
+-
+-class XPixmap : public XDrawable {
+-private:
+-	BBitmap* _offscreen = NULL;
+-	int _depth;
+-
+-public:
+-	XPixmap(Display* dpy, BRect frame, unsigned int depth);
+-	virtual ~XPixmap() override;
+-
+-	virtual color_space colorspace() override;
+-
+-	int depth() { return _depth; }
+-	BBitmap* offscreen() { return _offscreen; }
+-
+-	void sync();
+-
+-protected:
+-	virtual bool resize(BSize newSize) override;
+-};
+-
+-} // namespace BeXlib
+-using namespace BeXlib;
+diff --git a/xlib/Drawing.cpp b/xlib/Drawing.cpp
+index cdd7f59..1dfea6d 100644
+--- a/xlib/Drawing.cpp
++++ b/xlib/Drawing.cpp
+@@ -5,439 +5,404 @@
+  * Distributed under the terms of the MIT license.
+  */
+ #include "Drawing.h"
++#include "Undef.h"
++#include "XWindow.h"
++#include "ObjectManager.h"
++#include <LibGfx/ImageDecoder.h>
+ 
+-#include <interface/Bitmap.h>
+-#include <interface/Polygon.h>
+-
+-#include "Color.h"
+-#include "Drawables.h"
+-#include "Font.h"
+-#include "GC.h"
+-
++namespace XLib {
+ extern "C" {
++#define register
+ #include <X11/Xlib.h>
++#define Bool int
+ #include <X11/Xlibint.h>
++#undef register
+ }
+-
+-#include "Debug.h"
+-
+-static pattern
+-pattern_for(GC gc)
+-{
+-	pattern ptn;
+-	switch (gc->values.fill_style) {
+-	default:
+-	case FillSolid:
+-		ptn = B_SOLID_HIGH;
+-	break;
+-	case FillTiled:
+-	case FillStippled:
+-		// TODO: proper implementation?
+-	case FillOpaqueStippled:
+-		ptn = B_MIXED_COLORS;
+-	break;
+-	}
+-	return ptn;
+ }
+ 
+-extern "C" int
+-XDrawLine(Display *display, Drawable w, GC gc,
+-	int x1, int y1, int x2, int y2)
+-{
+-	XSegment seg;
+-	seg.x1 = x1;
+-	seg.y1 = y1;
+-	seg.x2 = x2;
+-	seg.y2 = y2;
+-	return XDrawSegments(display, w, gc, &seg, 1);
+-}
+-
+-extern "C" int
+-XDrawSegments(Display *display, Drawable w, GC gc,
+-	XSegment *segments, int ns)
+-{
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	for(int i = 0; i < ns; i++) {
+-		BPoint point1(segments[i].x1, segments[i].y1);
+-		BPoint point2(segments[i].x2, segments[i].y2);
+-		view->StrokeLine(point1, point2, pattern_for(gc));
+-	}
+-	view->UnlockLooper();
+-	return 0;
+-}
+-
+-extern "C" int
+-XDrawLines(Display *display, Drawable w, GC gc,
+-	XPoint *points, int np, int mode)
+-{
+-	int	i;
+-	short	wx, wy;
+-	wx = 0;
+-	wy = 0;
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	switch( mode ) {
+-	case CoordModeOrigin :
+-		for( i=0; i<(np-1); i++ ) {
+-			BPoint point1(points[i].x, points[i].y);
+-			BPoint point2(points[i+1].x, points[i+1].y);
+-			view->StrokeLine(point1, point2, pattern_for(gc));
+-		}
+-		break;
+-	case CoordModePrevious:
+-		for( i=0; i<np; i++ ) {
+-			if ( i==0 ) {
+-				wx = wx + points[i].x;
+-				wy = wy + points[i].y;
+-				BPoint point1( wx, wy );
+-				BPoint point2( wx, wy );
+-				view->StrokeLine(point1, point2, pattern_for(gc));
+-			}
+-			else {
+-				BPoint point3( wx, wy );
+-				wx = wx + points[i].x;
+-				wy = wy + points[i].y;
+-				BPoint point4( wx, wy );
+-				view->StrokeLine(point3, point4, pattern_for(gc));
+-			}
+-		}
+-		break;
+-	}
+-	view->UnlockLooper();
+-	return 0;
+-}
+-
+-extern "C" int
+-XDrawRectangle(Display *display, Drawable w, GC gc,
+-	int x,int y, unsigned int width, unsigned int height)
+-{
+-	XRectangle rect;
+-	rect.x = x;
+-	rect.y = y;
+-	rect.width = width;
+-	rect.height = height;
+-	return XDrawRectangles(display, w, gc, &rect, 1);
+-}
++#include "Debug.h"
+ 
+-extern "C" int
+-XDrawRectangles(Display *display, Drawable w, GC gc,
+-	XRectangle *rect, int n)
+-{
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	for (int i = 0; i < n; i++) {
+-		view->StrokeRect(brect_from_xrect(rect[i]), pattern_for(gc));
+-	}
+-	view->UnlockLooper();
+-	return 0;
+-}
++// static pattern
++// pattern_for(GC gc)
++// {
++// 	pattern ptn;
++// 	switch (gc->values.fill_style) {
++// 	default:
++// 	case FillSolid:
++// 		ptn = B_SOLID_HIGH;
++// 	break;
++// 	case FillTiled:
++// 	case FillStippled:
++// 		// TODO: proper implementation?
++// 	case FillOpaqueStippled:
++// 		ptn = B_MIXED_COLORS;
++// 	break;
++// 	}
++// 	return ptn;
++// }
++
++// extern "C" int
++// XDrawLine(Display *display, Drawable w, GC gc,
++// 	int x1, int y1, int x2, int y2)
++// {
++// 	XSegment seg;
++// 	seg.x1 = x1;
++// 	seg.y1 = y1;
++// 	seg.x2 = x2;
++// 	seg.y2 = y2;
++// 	return XDrawSegments(display, w, gc, &seg, 1);
++// }
++
++// extern "C" int
++// XDrawSegments(Display *display, Drawable w, GC gc,
++// 	XSegment *segments, int ns)
++// {
++// 	XDrawable* window = Drawables::get(w);
++// 	BView* view = window->view();
++// 	view->LockLooper();
++// 	bex_check_gc(window, gc);
++// 	for(int i = 0; i < ns; i++) {
++// 		BPoint point1(segments[i].x1, segments[i].y1);
++// 		BPoint point2(segments[i].x2, segments[i].y2);
++// 		view->StrokeLine(point1, point2, pattern_for(gc));
++// 	}
++// 	view->UnlockLooper();
++// 	return 0;
++// }
++
++// extern "C" int
++// XDrawLines(Display *display, Drawable w, GC gc,
++// 	XPoint *points, int np, int mode)
++// {
++// 	int	i;
++// 	short	wx, wy;
++// 	wx = 0;
++// 	wy = 0;
++// 	XDrawable* window = Drawables::get(w);
++// 	BView* view = window->view();
++// 	view->LockLooper();
++// 	bex_check_gc(window, gc);
++// 	switch( mode ) {
++// 	case CoordModeOrigin :
++// 		for( i=0; i<(np-1); i++ ) {
++// 			BPoint point1(points[i].x, points[i].y);
++// 			BPoint point2(points[i+1].x, points[i+1].y);
++// 			view->StrokeLine(point1, point2, pattern_for(gc));
++// 		}
++// 		break;
++// 	case CoordModePrevious:
++// 		for( i=0; i<np; i++ ) {
++// 			if ( i==0 ) {
++// 				wx = wx + points[i].x;
++// 				wy = wy + points[i].y;
++// 				BPoint point1( wx, wy );
++// 				BPoint point2( wx, wy );
++// 				view->StrokeLine(point1, point2, pattern_for(gc));
++// 			}
++// 			else {
++// 				BPoint point3( wx, wy );
++// 				wx = wx + points[i].x;
++// 				wy = wy + points[i].y;
++// 				BPoint point4( wx, wy );
++// 				view->StrokeLine(point3, point4, pattern_for(gc));
++// 			}
++// 		}
++// 		break;
++// 	}
++// 	view->UnlockLooper();
++// 	return 0;
++// }
++
++// extern "C" int
++// XDrawRectangle(Display *display, Drawable w, GC gc,
++// 	int x,int y, unsigned int width, unsigned int height)
++// {
++// 	XRectangle rect;
++// 	rect.x = x;
++// 	rect.y = y;
++// 	rect.width = width;
++// 	rect.height = height;
++// 	return XDrawRectangles(display, w, gc, &rect, 1);
++// }
++
++// extern "C" int
++// XDrawRectangles(Display *display, Drawable w, GC gc,
++// 	XRectangle *rect, int n)
++// {
++// 	XDrawable* window = Drawables::get(w);
++// 	BView* view = window->view();
++// 	view->LockLooper();
++// 	bex_check_gc(window, gc);
++// 	for (int i = 0; i < n; i++) {
++// 		view->StrokeRect(brect_from_xrect(rect[i]), pattern_for(gc));
++// 	}
++// 	view->UnlockLooper();
++// 	return 0;
++// }
+ 
+ extern "C" int
+-XFillRectangle(Display *display, Drawable win, GC gc,
++XLib::XFillRectangle(Display *display, Drawable win, GC gc,
+ 	int x, int y, unsigned int w, unsigned int h)
+ {
+-	XRectangle rect;
+-	rect.x = x;
+-	rect.y = y;
+-	rect.width = w;
+-	rect.height = h;
+-	return XFillRectangles(display, win, gc, &rect, 1);
++    XRectangle rect;
++    rect.x = x;
++    rect.y = y;
++    rect.width = w;
++    rect.height = h;
++    return XFillRectangles(display, win, gc, &rect, 1);
+ }
+ 
+ extern "C" int
+-XFillRectangles(Display *display, Drawable w, GC gc,
++XLib::XFillRectangles(Display *display, Drawable w, GC gc,
+ 	XRectangle *rect, int n)
+ {
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	for (int i = 0; i < n; i++) {
+-		view->FillRect(brect_from_xrect(rect[i]), pattern_for(gc));
+-	}
+-	view->UnlockLooper();
+-	return 0;
+-}
+-
+-extern "C" int
+-XDrawArc(Display *display, Drawable w, GC gc,
+-	int x, int y, unsigned int width,unsigned height, int a1, int a2)
+-{
+-	XArc arc;
+-	arc.x = x;
+-	arc.y = y;
+-	arc.width = width;
+-	arc.height = height;
+-	arc.angle1 = a1;
+-	arc.angle2 = a2;
+-	return XDrawArcs(display, w, gc, &arc, 1);
+-}
+-
+-extern "C" int
+-XDrawArcs(Display *display, Drawable w, GC gc, XArc *arc, int n)
+-{
+-	// FIXME: Take arc_mode into account!
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	for (int i = 0; i < n; i++) {
+-		view->StrokeArc(brect_from_xrect(make_xrect(arc[i].x, arc[i].y, arc[i].width, arc[i].height)),
+-			((float)arc[i].angle1) / 64, ((float)arc[i].angle2) / 64,
+-			pattern_for(gc));
+-	}
+-	view->UnlockLooper();
+-	return 0;
++    auto window = ObjectManager::the().get_window(w); // FIXME: Consider implementing XWindow as a subclass of XDrawable
++    auto& painter = window->painter();
++    //bex_check_gc(window, gc);
++    for (int i = 0; i < n; i++) {
++        painter.fill_rect(intrect_from_xrect(rect[i]), Color::from_rgb(gc->values.foreground));
++        dbgln("background color: {}", gc->values.foreground);
++    }
++    return 0;
+ }
+ 
+-extern "C" int
+-XFillArc(Display *display, Drawable w, GC gc,
+-	int x, int y, unsigned int width, unsigned height, int a1, int a2)
+-{
+-	XArc arc;
+-	arc.x = x;
+-	arc.y = y;
+-	arc.width = width;
+-	arc.height = height;
+-	arc.angle1 = a1;
+-	arc.angle2 = a2;
+-	return XFillArcs(display, w, gc, &arc, 1);
+-}
++// extern "C" int
++// XDrawArc(Display *display, Drawable w, GC gc,
++// 	int x, int y, unsigned int width,unsigned height, int a1, int a2)
++// {
++// 	XArc arc;
++// 	arc.x = x;
++// 	arc.y = y;
++// 	arc.width = width;
++// 	arc.height = height;
++// 	arc.angle1 = a1;
++// 	arc.angle2 = a2;
++// 	return XDrawArcs(display, w, gc, &arc, 1);
++// }
++
++// extern "C" int
++// XDrawArcs(Display *display, Drawable w, GC gc, XArc *arc, int n)
++// {
++// 	// FIXME: Take arc_mode into account!
++// 	XDrawable* window = Drawables::get(w);
++// 	BView* view = window->view();
++// 	view->LockLooper();
++// 	bex_check_gc(window, gc);
++// 	for (int i = 0; i < n; i++) {
++// 		view->StrokeArc(brect_from_xrect(make_xrect(arc[i].x, arc[i].y, arc[i].width, arc[i].height)),
++// 			((float)arc[i].angle1) / 64, ((float)arc[i].angle2) / 64,
++// 			pattern_for(gc));
++// 	}
++// 	view->UnlockLooper();
++// 	return 0;
++// }
++
++// extern "C" int
++// XFillArc(Display *display, Drawable w, GC gc,
++// 	int x, int y, unsigned int width, unsigned height, int a1, int a2)
++// {
++// 	XArc arc;
++// 	arc.x = x;
++// 	arc.y = y;
++// 	arc.width = width;
++// 	arc.height = height;
++// 	arc.angle1 = a1;
++// 	arc.angle2 = a2;
++// 	return XFillArcs(display, w, gc, &arc, 1);
++// }
++
++// extern "C" int
++// XFillArcs(Display* display, Drawable w, GC gc,
++// 	XArc *arc, int n)
++// {
++// 	// FIXME: Take arc_mode into account!
++// 	XDrawable* window = Drawables::get(w);
++// 	BView* view = window->view();
++// 	view->LockLooper();
++// 	bex_check_gc(window, gc);
++// 	for (int i = 0; i < n; i++) {
++// 		view->FillArc(brect_from_xrect(make_xrect(arc[i].x, arc[i].y, arc[i].width, arc[i].height)),
++// 			((float)arc[i].angle1) / 64.0f, ((float)arc[i].angle2) / 64.0f,
++// 			pattern_for(gc));
++// 	}
++// 	view->UnlockLooper();
++// 	return 0;
++// }
++
++// extern "C" int
++// XFillPolygon(Display *display, Drawable w, GC gc,
++// 	XPoint *points, int npoints, int shape, int mode)
++// {
++// 	BPolygon polygon;
++// 	switch (mode) {
++// 	case CoordModeOrigin :
++// 		for(int i = 0; i < npoints; i++) {
++// 			BPoint point(points[i].x, points[i].y);
++// 			polygon.AddPoints(&point, 1);
++// 		}
++// 		break;
++// 	case CoordModePrevious: {
++// 		int wx = 0, wy = 0;
++// 		for(int i = 0; i < npoints; i++) {
++// 			wx = wx + points[i].x;
++// 			wy = wy + points[i].y;
++// 			BPoint point(wx, wy);
++// 			polygon.AddPoints(&point, 1);
++// 		}
++// 		break;
++// 	}
++// 	}
++
++// 	XDrawable* window = Drawables::get(w);
++// 	BView* view = window->view();
++// 	view->LockLooper();
++// 	bex_check_gc(window, gc);
++// 	view->FillPolygon(&polygon, pattern_for(gc));
++// 	view->UnlockLooper();
++// 	return 0;
++// }
++
++// extern "C" int
++// XDrawPoint(Display *display, Drawable w, GC gc, int x, int y)
++// {
++// 	XPoint point;
++// 	point.x = x;
++// 	point.y = y;
++// 	return XDrawPoints(display, w, gc, &point, 1, CoordModeOrigin);
++// }
++
++// extern "C" int
++// XDrawPoints(Display *display, Drawable w, GC gc,
++// 	XPoint* points, int n, int mode)
++// {
++// 	XDrawable* window = Drawables::get(w);
++// 	BView* view = window->view();
++// 	view->LockLooper();
++// 	bex_check_gc(window, gc);
++// 	view->PushState();
++// 	view->SetPenSize(1);
++// 	switch (mode) {
++// 	case CoordModeOrigin :
++// 		for (int i = 0; i < n; i++) {
++// 			BPoint point(points[i].x, points[i].y);
++// 			view->StrokeLine(point, point, pattern_for(gc));
++// 		}
++// 		break;
++// 	case CoordModePrevious: {
++// 		short wx = 0, wy = 0;
++// 		for (int i = 0; i < n; i++) {
++// 			wx = wx + points[i].x;
++// 			wy = wy + points[i].y;
++// 			BPoint point( wx, wy );
++// 			view->StrokeLine(point, point, pattern_for(gc));
++// 		}
++// 		break;
++// 	}
++// 	}
++// 	view->PopState();
++// 	view->UnlockLooper();
++// 	return 0;
++// }
+ 
+ extern "C" int
+-XFillArcs(Display* display, Drawable w, GC gc,
+-	XArc *arc, int n)
++XLib::XCopyArea(Display* display, Drawable src, Drawable dest, GC gc,
++	int src_x, int src_y, unsigned int width, unsigned int height, int dest_x, int dest_y)
+ {
+-	// FIXME: Take arc_mode into account!
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	for (int i = 0; i < n; i++) {
+-		view->FillArc(brect_from_xrect(make_xrect(arc[i].x, arc[i].y, arc[i].width, arc[i].height)),
+-			((float)arc[i].angle1) / 64.0f, ((float)arc[i].angle2) / 64.0f,
+-			pattern_for(gc));
+-	}
+-	view->UnlockLooper();
+-	return 0;
+-}
++    auto src_d = ObjectManager::the().get_drawable(src);
++    auto dest_d = ObjectManager::the().get_drawable(dest);
++    if (src_d.is_null() || dest_d.is_null())
++        return BadDrawable;
+ 
+-extern "C" int
+-XFillPolygon(Display *display, Drawable w, GC gc,
+-	XPoint *points, int npoints, int shape, int mode)
+-{
+-	BPolygon polygon;
+-	switch (mode) {
+-	case CoordModeOrigin :
+-		for(int i = 0; i < npoints; i++) {
+-			BPoint point(points[i].x, points[i].y);
+-			polygon.AddPoints(&point, 1);
+-		}
+-		break;
+-	case CoordModePrevious: {
+-		int wx = 0, wy = 0;
+-		for(int i = 0; i < npoints; i++) {
+-			wx = wx + points[i].x;
+-			wy = wy + points[i].y;
+-			BPoint point(wx, wy);
+-			polygon.AddPoints(&point, 1);
+-		}
+-		break;
+-	}
+-	}
+-
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	view->FillPolygon(&polygon, pattern_for(gc));
+-	view->UnlockLooper();
+-	return 0;
+-}
++    const Gfx::IntRect src_rect(src_x, src_y, width, height);
++    const Gfx::IntRect dest_rect(dest_x, dest_y, width, height);
+ 
+-extern "C" int
+-XDrawPoint(Display *display, Drawable w, GC gc, int x, int y)
+-{
+-	XPoint point;
+-	point.x = x;
+-	point.y = y;
+-	return XDrawPoints(display, w, gc, &point, 1, CoordModeOrigin);
+-}
+ 
+-extern "C" int
+-XDrawPoints(Display *display, Drawable w, GC gc,
+-	XPoint* points, int n, int mode)
+-{
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	view->PushState();
+-	view->SetPenSize(1);
+-	switch (mode) {
+-	case CoordModeOrigin :
+-		for (int i = 0; i < n; i++) {
+-			BPoint point(points[i].x, points[i].y);
+-			view->StrokeLine(point, point, pattern_for(gc));
+-		}
+-		break;
+-	case CoordModePrevious: {
+-		short wx = 0, wy = 0;
+-		for (int i = 0; i < n; i++) {
+-			wx = wx + points[i].x;
+-			wy = wy + points[i].y;
+-			BPoint point( wx, wy );
+-			view->StrokeLine(point, point, pattern_for(gc));
+-		}
+-		break;
+-	}
+-	}
+-	view->PopState();
+-	view->UnlockLooper();
+-	return 0;
++    auto cropped_bitmap = MUST(src_d->bitmap()->cropped(src_rect));
++    dest_d->painter().draw_tiled_bitmap(dest_rect, cropped_bitmap);
++    return Success;
+ }
+ 
+-extern "C" int
+-XCopyArea(Display* display, Drawable src, Drawable dest, GC gc,
+-	int src_x, int src_y, unsigned int width, unsigned int height, int dest_x, int dest_y)
+-{
+-	XDrawable* src_d = Drawables::get(src);
+-	XDrawable* dest_d = Drawables::get(dest);
+-	if (!src_d || !dest_d)
+-		return BadDrawable;
+-
+-	const BRect src_rect = brect_from_xrect(make_xrect(src_x, src_y, width, height));
+-	const BRect dest_rect = brect_from_xrect(make_xrect(dest_x, dest_y, width, height));
+-
+-	if (src_d == dest_d) {
+-		src_d->view()->LockLooper();
+-		bex_check_gc(src_d, gc);
+-		src_d->view()->CopyBits(src_rect, dest_rect);
+-		src_d->view()->UnlockLooper();
+-		return Success;
+-	}
+-
+-	XPixmap* src_pxm = dynamic_cast<XPixmap*>(src_d);
+-	if (src_pxm) {
+-		src_pxm->sync();
+-
+-		dest_d->view()->LockLooper();
+-		bex_check_gc(dest_d, gc);
+-		dest_d->view()->DrawBitmap(src_pxm->offscreen(), src_rect, dest_rect);
+-		dest_d->view()->UnlockLooper();
+-		return Success;
+-	}
+-
+-	// TODO?
+-	UNIMPLEMENTED();
+-	return BadValue;
+-}
+-
+-extern "C" int
+-XCopyPlane(Display *display, Drawable src, Drawable dest, GC gc,
+-	int src_x, int src_y, unsigned int width, unsigned int height,
+-	int dest_x, int dest_y, unsigned long plane)
+-{
+-	// TODO: Actually use "plane"!
+-	return XCopyArea(display, src, dest, gc, src_x, src_y, width, height, dest_x, dest_y);
+-}
++// extern "C" int
++// XCopyPlane(Display *display, Drawable src, Drawable dest, GC gc,
++// 	int src_x, int src_y, unsigned int width, unsigned int height,
++// 	int dest_x, int dest_y, unsigned long plane)
++// {
++// 	// TODO: Actually use "plane"!
++// 	return XCopyArea(display, src, dest, gc, src_x, src_y, width, height, dest_x, dest_y);
++// }
+ 
+ extern "C" int
+-XPutImage(Display *display, Drawable d, GC gc, XImage* image,
++XLib::XPutImage(Display *display, Drawable d, GC gc, XImage* image,
+ 	int src_x, int src_y, int dest_x, int dest_y,
+ 	unsigned int width, unsigned int height)
+ {
+-	XDrawable* drawable = Drawables::get(d);
+-	if (!drawable)
+-		return BadDrawable;
+-
+-	const BRect srcRect = brect_from_xrect(make_xrect(src_x, src_y, width, height));
+-	const BRect scratchBounds = drawable->scratch_bitmap
+-		? drawable->scratch_bitmap->Bounds() : BRect();
+-	if (drawable->scratch_bitmap == NULL
+-			|| scratchBounds.Width() < srcRect.Width()
+-			|| scratchBounds.Height() < srcRect.Height()) {
+-		// We need a bigger scratch bitmap.
+-		BSize size = srcRect.Size();
+-		if (size.width < scratchBounds.Width())
+-			size.width = scratchBounds.Width();
+-		if (size.height < scratchBounds.Height())
+-			size.height = scratchBounds.Height();
+-
+-		delete drawable->scratch_bitmap;
+-		drawable->scratch_bitmap = new BBitmap(BRect(BPoint(0, 0), size), 0, drawable->colorspace());
+-	}
+-
+-	// TODO: Optimization: Import only the bits we are about to draw!
+-	drawable->scratch_bitmap->ImportBits(image->data, image->height * image->bytes_per_line,
+-		image->bytes_per_line, image->xoffset, _x_color_space_for(NULL, image->bits_per_pixel));
+-
+-	BView* view = drawable->view();
+-	view->LockLooper();
+-	bex_check_gc(drawable, gc);
+-	view->DrawBitmap(drawable->scratch_bitmap, srcRect,
+-		brect_from_xrect(make_xrect(dest_x, dest_y, width, height)));
+-	view->UnlockLooper();
+-	return Success;
+-}
++	    auto drawable = ObjectManager::the().get_drawable(d);
++    if (drawable.is_null())
++        return BadDrawable;
+ 
+-extern "C" void
+-Xutf8DrawString(Display *display, Drawable w, XFontSet set, GC gc, int x, int y, const char* str, int len)
+-{
+-	// FIXME: Use provided fonts!
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	view->DrawString(str, len, BPoint(x, y));
+-	view->UnlockLooper();
+-}
++    //const auto srcRect = intrect_from_xrect(make_xrect(src_x, src_y, width, height));
+ 
+-extern "C" int
+-XDrawString(Display* display, Drawable w, GC gc, int x, int y, const char* str, int len)
+-{
+-	Xutf8DrawString(display, w, NULL, gc, x, y, str, len);
+-	return 0;
++    AK::Span<const u8> span(image->data, image->height*image->bytes_per_line);
++    auto decoder = Gfx::ImageDecoder::try_create(span);
++    auto frame = MUST(decoder->frame(0));
++    auto bitmap = frame.image;
++
++    //bex_check_gc(drawable, gc);
++
++    drawable->painter().draw_tiled_bitmap(intrect_from_xrect(make_xrect(dest_x, dest_y, width, height)), *bitmap);
++    return Success;
+ }
+ 
+ extern "C" void
+-Xutf8DrawImageString(Display *display, Drawable w, XFontSet set, GC gc,
+-	int x, int y, const char* str, int len)
++XLib::Xutf8DrawString(Display *display, Drawable w, XFontSet set, GC gc, int x, int y, const char* str, int len)
+ {
+-	Xutf8DrawString(display, w, set, gc, x, y, str, len);
++ 	// FIXME: Use provided fonts!
++    auto window = ObjectManager::the().get_window(w); // FIXME: Consider implementing XWindow as a subclass of XDrawable
++    auto& painter = window->painter();
++    //bex_check_gc(window, gc);
++    Gfx::IntRect rect(x, y, window->widget()->width()-x, window->widget()->height()-y);
++    
++    painter.draw_text(rect, StringView(str, len), Gfx::TextAlignment::TopLeft, Color::from_rgb(gc->values.foreground), Gfx::TextElision::None, Gfx::TextWrapping::DontWrap);
+ }
+ 
+ extern "C" int
+-XDrawImageString(Display *display, Drawable w, GC gc, int x, int y, const char* str, int len)
++XLib::XDrawString(Display* display, Drawable w, GC gc, int x, int y, const char* str, int len)
+ {
+-	return XDrawString(display, w, gc, x, y, str, len);
++    Xutf8DrawString(display, w, NULL, gc, x, y, str, len);
++    return 0;
+ }
+ 
+-extern "C" int
+-XDrawText(Display *display, Drawable w, GC gc, int x, int y, XTextItem* items, int count)
+-{
+-	XDrawable* window = Drawables::get(w);
+-	BView* view = window->view();
+-	view->LockLooper();
+-	bex_check_gc(window, gc);
+-	view->PushState();
+-	for (int i = 0; i < count; i++) {
+-		if (items[i].font != None) {
+-			BFont font = bfont_from_font(items[i].font);
+-			view->SetFont(&font);
+-		}
+-		view->DrawString(items[i].chars, items[i].nchars, BPoint(x, y));
+-		x += view->StringWidth(items[i].chars, items[i].nchars);
+-		x += items[i].delta;
+-	}
+-	view->PopState();
+-	view->UnlockLooper();
+-	return 0;
+-}
++// extern "C" void
++// Xutf8DrawImageString(Display *display, Drawable w, XFontSet set, GC gc,
++// 	int x, int y, const char* str, int len)
++// {
++// 	Xutf8DrawString(display, w, set, gc, x, y, str, len);
++// }
++
++// extern "C" int
++// XDrawImageString(Display *display, Drawable w, GC gc, int x, int y, const char* str, int len)
++// {
++// 	return XDrawString(display, w, gc, x, y, str, len);
++// }
++
++// extern "C" int
++// XDrawText(Display *display, Drawable w, GC gc, int x, int y, XTextItem* items, int count)
++// {
++// 	XDrawable* window = Drawables::get(w);
++// 	BView* view = window->view();
++// 	view->LockLooper();
++// 	bex_check_gc(window, gc);
++// 	view->PushState();
++// 	for (int i = 0; i < count; i++) {
++// 		if (items[i].font != None) {
++// 			BFont font = bfont_from_font(items[i].font);
++// 			view->SetFont(&font);
++// 		}
++// 		view->DrawString(items[i].chars, items[i].nchars, BPoint(x, y));
++// 		x += view->StringWidth(items[i].chars, items[i].nchars);
++// 		x += items[i].delta;
++// 	}
++// 	view->PopState();
++// 	view->UnlockLooper();
++// 	return 0;
++// }
+diff --git a/xlib/Drawing.h b/xlib/Drawing.h
+index b0c984f..6807d1a 100644
+--- a/xlib/Drawing.h
++++ b/xlib/Drawing.h
+@@ -4,16 +4,18 @@
+  */
+ #pragma once
+ 
+-#include <interface/Rect.h>
++#include <LibGfx/Rect.h>
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ }
++}
+ 
+-static inline XRectangle
++static inline XLib::XRectangle
+ make_xrect(int x, int y, int w, int h)
+ {
+-	XRectangle r;
++	XLib::XRectangle r;
+ 	r.x = x;
+ 	r.y = y;
+ 	r.width = w;
+@@ -21,16 +23,16 @@ make_xrect(int x, int y, int w, int h)
+ 	return r;
+ }
+ 
+-static inline XRectangle
+-xrect_from_brect(const BRect& rect)
++static inline XLib::XRectangle
++xrect_from_intrect(const Gfx::IntRect& rect)
+ {
+-	return make_xrect(rect.LeftTop().x, rect.LeftTop().y,
+-		rect.IntegerWidth() + 1, rect.IntegerHeight() + 1);
++    return make_xrect(rect.left(), rect.top(),
++        rect.width(), rect.height());
+ }
+ 
+-static inline BRect
+-brect_from_xrect(const XRectangle& xrect)
++static inline Gfx::IntRect
++intrect_from_xrect(const XLib::XRectangle& xrect)
+ {
+-	return BRect(xrect.x, xrect.y,
+-		(xrect.x + xrect.width) - 1, (xrect.y + xrect.height) - 1);
++    return Gfx::IntRect(xrect.x, xrect.y,
++        xrect.width, xrect.height);
+ }
+diff --git a/xlib/Event.cpp b/xlib/Event.cpp
+index 928556c..5df79d6 100644
+--- a/xlib/Event.cpp
++++ b/xlib/Event.cpp
+@@ -2,75 +2,82 @@
+  * Copyright 2021, Haiku, Inc. All rights reserved.
+  * Distributed under the terms of the MIT license.
+  */
+-#include "Drawables.h"
++#include <AK/Queue.h>
++#include <LibThreading/Mutex.h>
++#include <LibGUI/Application.h>
++#include "ObjectManager.h"
++#include "XWindow.h"
++#include "Event.h"
++#include "Property.h"
+ 
+-#include <support/Autolock.h>
+-#include <support/Locker.h>
+ #include <sys/ioctl.h>
+-#include <list>
+-#include <functional>
+-
+-#include "Property.h"
+-#include "Selection.h"
+ 
++namespace XLib {
+ extern "C" {
++#define register
+ #include <X11/Xlib.h>
+ #include <X11/Xlibint.h>
++#undef register
++}
++}
++
++extern "C" {
++#include <unistd.h>
+ }
+ 
+ namespace {
+ class Events {
+ private:
+-	Display* _display;
+-	BLocker lock_;
+-	std::list<XEvent> list_;
++	XLib::Display* _display;
++	//BLocker lock_;
++	AK::Queue<XLib::XEvent> list_;
+ 
+-	Events(Display* display);
++	Events(XLib::Display* display);
+ 	void wait_for_more();
+ 
+ public:
+ 	static bool is_match(long mask, long event);
+ 
+-	static void init_for(Display* display);
+-	static Events& instance_for(Display* display);
++	static void init_for(XLib::Display* display);
++	static Events& instance_for(XLib::Display* display);
+ 
+-	void add(XEvent event, bool front = false);
+-	void wait_for_next(XEvent* event_return, bool dequeue = true);
++	void add(XLib::XEvent event, bool front = false);
++	void wait_for_next(XLib::XEvent* event_return, bool dequeue = true);
+ 
+ 	/* if and only if 'wait' is false can this function return false, i.e. no event found */
+-	bool query(std::function<bool(const XEvent&)> condition,
+-		XEvent* event_return, bool wait, bool dequeue = true);
++	bool query(AK::Function<bool(const XLib::XEvent&)> condition,
++		XLib::XEvent* event_return, bool wait, bool dequeue = true);
+ };
+ }
+ 
+ Events&
+-Events::instance_for(Display* display)
++Events::instance_for(XLib::Display* display)
+ {
+ 	return *(Events*)display->trans_conn;
+ }
+ 
+ void
+-_x_init_events(Display* dpy)
++_x_init_events(XLib::Display* dpy)
+ {
+ 	Events::init_for(dpy);
+ }
+ 
+ void
+-_x_finalize_events(Display* dpy)
++_x_finalize_events(XLib::Display* dpy)
+ {
+ 	delete (Events*)dpy->trans_conn;
+ }
+ 
+ void
+-Events::init_for(Display* display)
++Events::init_for(XLib::Display* display)
+ {
+ 	if (!display->trans_conn)
+-		display->trans_conn = (typeof(display->trans_conn))new Events(display);
++		display->trans_conn = (__typeof__(display->trans_conn))new Events(display);
+ }
+ 
+-Events::Events(Display* display)
++Events::Events(XLib::Display* display)
+ 	: _display(display)
+-	, lock_("XEvents")
++	//, lock_("XEvents")
+ {
+ }
+ 
+@@ -136,26 +143,27 @@ bool Events::is_match(long mask, long event)
+ }
+ 
+ void
+-Events::add(XEvent event, bool front)
++Events::add(XLib::XEvent event, bool front)
+ {
+ 	event.xany.display = _display;
+ 
+-	BAutolock evl(lock_);
++	//BAutolock evl(lock_);
+ 	_display->last_request_read = _display->request;
+ 	event.xany.serial = _display->request++;
+ 	_display->qlen++;
+ 	if (front)
+-		list_.push_front(event);
++		dbgln("Add to front of queue is not implemented");
++		//list_.push_front(event);
+ 	else
+-		list_.push_back(event);
+-	evl.Unlock();
++		list_.enqueue(event);
++	//evl.Unlock();
+ 
+ 	char dummy[1];
+ 	write(_display->conn_checker, dummy, 1);
+ }
+ 
+ void
+-_x_put_event(Display* display, const XEvent& event)
++_x_put_event(XLib::Display* display, const XLib::XEvent& event)
+ {
+ 	Events::instance_for(display).add(event);
+ }
+@@ -168,57 +176,58 @@ Events::wait_for_more()
+ }
+ 
+ void
+-Events::wait_for_next(XEvent* event_return, bool dequeue)
++Events::wait_for_next(XLib::XEvent* event_return, bool dequeue)
+ {
+ 	if (!_display->qlen)
+ 		wait_for_more();
+ 
+-	BAutolock evl(lock_);
+-	*event_return = list_.front();
++	//BAutolock evl(lock_);
++	*event_return = list_.head();
+ 	if (dequeue) {
+-		list_.pop_front();
++		list_.dequeue();
+ 		_display->qlen--;
+ 	}
+ }
+ 
+ bool
+-Events::query(std::function<bool(const XEvent&)> condition, XEvent* event,
++Events::query(AK::Function<bool(const XLib::XEvent&)> condition, XLib::XEvent* event,
+ 	bool wait, bool dequeue)
+ {
+-	while (true) {
+-		BAutolock evl(lock_);
+-		for (auto i = list_.begin(); i != list_.end(); i++) {
+-			if (!condition(*i))
+-				continue;
+-
+-			*event = (*i);
+-			if (dequeue) {
+-				list_.erase(i);
+-				_display->qlen--;
+-			}
+-			return true;
+-		}
+-		evl.Unlock();
+-
+-		if (!wait)
+-			return false;
+-		wait_for_more();
+-	}
++	// while (true) {
++	// 	//BAutolock evl(lock_);
++	// 	for (auto i = list_.begin(); i != list_.end(); i++) {
++	// 		if (!condition(*i))
++	// 			continue;
++
++	// 		*event = (*i);
++	// 		if (dequeue) {
++	// 			list_.erase(i);
++	// 			_display->qlen--;
++	// 		}
++	// 		return true;
++	// 	}
++	// 	//evl.Unlock();
++
++	// 	if (!wait)
++	// 		return false;
++	// 	wait_for_more();
++	// }
++	dbgln("Event::query not implemented");
+ 	return false;
+ }
+ 
+ extern "C" int
+-XSelectInput(Display* display, Window w, long mask)
++XLib::XSelectInput(Display* display, Window w, long mask)
+ {
+-	XWindow* window = Drawables::get_window(w);
+-	if (!window)
+-		return BadWindow;
+-	window->event_mask(mask);
+-	return Success;
++    auto window = ObjectManager::the().get_window(w);
++    if (window.is_null())
++        return BadWindow;
++    window->event_mask(mask);
++    return Success;
+ }
+ 
+ extern "C" int
+-XPeekEvent(Display* display, XEvent* event)
++XPeekEvent(XLib::Display* display, XLib::XEvent* event)
+ {
+ 	XFlush(display);
+ 	Events::instance_for(display).wait_for_next(event, false);
+@@ -226,7 +235,7 @@ XPeekEvent(Display* display, XEvent* event)
+ }
+ 
+ extern "C" int
+-XNextEvent(Display* display, XEvent* event)
++XNextEvent(XLib::Display* display, XLib::XEvent* event)
+ {
+ 	XFlush(display);
+ 	Events::instance_for(display).wait_for_next(event);
+@@ -234,55 +243,58 @@ XNextEvent(Display* display, XEvent* event)
+ }
+ 
+ extern "C" int
+-XMaskEvent(Display* display, long event_mask, XEvent* event_return)
++XMaskEvent(XLib::Display* display, long event_mask, XLib::XEvent* event_return)
+ {
+ 	XFlush(display);
+-	Events::instance_for(display).query([event_mask](const XEvent& event) {
++	Events::instance_for(display).query([event_mask](const XLib::XEvent& event) {
+ 		return Events::is_match(event_mask, event.type);
+ 	}, event_return, true);
+ 	return Success;
+ }
+ 
+ extern "C" int
+-XSendEvent(Display* display, Window w, Bool propagate, long event_mask, XEvent* event_send)
++XLib::XSendEvent(XLib::Display* display, XLib::Window w, Bool propagate, long event_mask, XLib::XEvent* event_send)
+ {
+-	if (w == DefaultRootWindow(display)) {
+-		if (event_send->type == SelectionClear || event_send->type == SelectionRequest
+-				|| event_send->type == SelectionNotify) {
+-			_x_handle_send_root_selection(display, *event_send);
+-			return 0;
+-		}
+-		_x_handle_send_root(display, *event_send);
+-		return 0;
+-	}
+-
+-	XWindow* window = Drawables::get_window(w);
+-	if (w == PointerWindow)
+-		window = Drawables::pointer();
+-	else if (w == InputFocus)
+-		window = Drawables::focused();
+-	if (!window)
+-		return 0;
+-
+-	if (!Events::is_match(window->event_mask(), event_send->type))
+-		return 1;
+-
+-	event_send->xany.display = display;
+-	event_send->xany.window = w;
+-	event_send->xany.send_event = True;
+-	_x_put_event(display, *event_send);
+-	return 1;
++    if (w == DefaultRootWindow(display)) {
++        if (event_send->type == SelectionClear || event_send->type == SelectionRequest
++            || event_send->type == SelectionNotify) {
++            dbgln("LibXEmulator: Implement _x_handle_send_root_selection"); //TODO
++            //_x_handle_send_root_selection(display, *event_send);
++            return 0;
++        }
++        _x_handle_send_root(display, *event_send);
++        return 0;
++    }
++
++    XWindow* window = ObjectManager::the().get_window(w);
++    // FIXME
++//    if (w == PointerWindow)
++//        window = Drawables::pointer();
++//    else if (w == InputFocus)
++//        window = Drawables::focused();
++    if (!window)
++        return 0;
++
++    // TODO
++//    if (!Events::is_match(window->event_mask(), event_send->type))
++//        return 1;
++
++    event_send->xany.display = display;
++    event_send->xany.window = w;
++    event_send->xany.send_event = True;
++    _x_put_event(display, *event_send);
++    return 1;
+ }
+ 
+ extern "C" int
+-XPutBackEvent(Display* display, XEvent* event)
++XLib::XPutBackEvent(XLib::Display* display, XLib::XEvent* event)
+ {
+ 	Events::instance_for(display).add(*event, true);
+ 	return Success;
+ }
+ 
+ extern "C" Bool
+-XIfEvent(Display* display, XEvent* event_return,
++XLib::XIfEvent(Display* display, XEvent* event_return,
+ 	Bool (*predicate)(Display*, XEvent*, XPointer), XPointer arg)
+ {
+ 	XFlush(display);
+@@ -293,7 +305,7 @@ XIfEvent(Display* display, XEvent* event_return,
+ }
+ 
+ extern "C" Bool
+-XPeekIfEvent(Display* display, XEvent* event_return,
++XLib::XPeekIfEvent(Display* display, XEvent* event_return,
+ 	Bool (*predicate)(Display*, XEvent*, XPointer), XPointer arg)
+ {
+ 	XFlush(display);
+@@ -304,7 +316,7 @@ XPeekIfEvent(Display* display, XEvent* event_return,
+ }
+ 
+ extern "C" Bool
+-XWindowEvent(Display* display, Window w, long event_mask, XEvent* event_return)
++XLib::XWindowEvent(Display* display, Window w, long event_mask, XEvent* event_return)
+ {
+ 	XFlush(display);
+ 	Events::instance_for(display).query([w, event_mask](const XEvent& event) {
+@@ -314,7 +326,7 @@ XWindowEvent(Display* display, Window w, long event_mask, XEvent* event_return)
+ }
+ 
+ extern "C" Bool
+-XCheckMaskEvent(Display* display, long event_mask, XEvent* event_return)
++XLib::XCheckMaskEvent(Display* display, long event_mask, XEvent* event_return)
+ {
+ 	XFlush(display);
+ 	bool found = Events::instance_for(display).query([event_mask](const XEvent& event) {
+@@ -324,7 +336,7 @@ XCheckMaskEvent(Display* display, long event_mask, XEvent* event_return)
+ }
+ 
+ extern "C" Bool
+-XCheckTypedWindowEvent(Display* display, Window w, int event_type, XEvent* event_return)
++XLib::XCheckTypedWindowEvent(Display* display, Window w, int event_type, XEvent* event_return)
+ {
+ 	XFlush(display);
+ 	bool found = Events::instance_for(display).query([w, event_type](const XEvent& event) {
+@@ -334,13 +346,13 @@ XCheckTypedWindowEvent(Display* display, Window w, int event_type, XEvent* event
+ }
+ 
+ extern "C" Bool
+-XCheckTypedEvent(Display* display, int event_type, XEvent* event_return)
++XLib::XCheckTypedEvent(Display* display, int event_type, XEvent* event_return)
+ {
+ 	return XCheckTypedWindowEvent(display, ~((Window)0), event_type, event_return);
+ }
+ 
+ extern "C" Bool
+-XCheckWindowEvent(Display* display, Window w, long event_mask, XEvent* event_return)
++XLib::XCheckWindowEvent(Display* display, Window w, long event_mask, XEvent* event_return)
+ {
+ 	XFlush(display);
+ 	bool found = Events::instance_for(display).query([w, event_mask](const XEvent& event) {
+@@ -350,7 +362,7 @@ XCheckWindowEvent(Display* display, Window w, long event_mask, XEvent* event_ret
+ }
+ 
+ extern "C" Bool
+-XCheckIfEvent(Display* display, XEvent* event_return,
++XLib::XCheckIfEvent(Display* display, XEvent* event_return,
+ 	Bool (*predicate)(Display*, XEvent*, XPointer), XPointer arg)
+ {
+ 	XFlush(display);
+@@ -361,7 +373,7 @@ XCheckIfEvent(Display* display, XEvent* event_return,
+ }
+ 
+ extern "C" int
+-XFlush(Display* dpy)
++XLib::XFlush(Display* dpy)
+ {
+ 	// We only have the "input buffer" to flush.
+ 	int nbytes;
+@@ -369,7 +381,7 @@ XFlush(Display* dpy)
+ 
+ 	while (nbytes) {
+ 		char dummy[16];
+-		int rd = read(dpy->fd, dummy, min_c(nbytes, sizeof(dummy)));
++		int rd = read(dpy->fd, dummy, min(nbytes, sizeof(dummy)));
+ 		if (rd > 0)
+ 			nbytes -= rd;
+ 	}
+@@ -378,7 +390,7 @@ XFlush(Display* dpy)
+ }
+ 
+ extern "C" int
+-XSync(Display* display, Bool discard)
++XLib::XSync(Display* display, Bool discard)
+ {
+ 	XFlush(display);
+ 	if (discard) {
+@@ -390,7 +402,7 @@ XSync(Display* display, Bool discard)
+ }
+ 
+ extern "C" int
+-XEventsQueued(Display* display, int mode)
++XLib::XEventsQueued(Display* display, int mode)
+ {
+ 	if (mode != QueuedAlready && !QLength(display))
+ 		XFlush(display);
+@@ -398,7 +410,7 @@ XEventsQueued(Display* display, int mode)
+ }
+ 
+ extern "C" int
+-XPending(Display* display)
++XLib::XPending(Display* display)
+ {
+ 	return XEventsQueued(display, QueuedAfterFlush);
+ }
+diff --git a/xlib/Event.h b/xlib/Event.h
+index 42293e8..edf0e3d 100644
+--- a/xlib/Event.h
++++ b/xlib/Event.h
+@@ -4,13 +4,20 @@
+  */
+ #pragma once
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ }
++}
++
++#include <time.h>
+ 
+-#define _x_current_time() (Time(system_time() / 1000))
++inline XLib::Time _x_current_time()
++{
++    return XLib::Time(time(nullptr) / 1000);
++}
+ 
+-void _x_init_events(Display* dpy);
+-void _x_finalize_events(Display* dpy);
++void _x_init_events(XLib::Display* dpy);
++void _x_finalize_events(XLib::Display* dpy);
+ 
+-void _x_put_event(Display* dpy, const XEvent& event);
++void _x_put_event(XLib::Display* dpy, const XLib::XEvent& event);
+diff --git a/xlib/Extension.cpp b/xlib/Extension.cpp
+index c5f558a..3bcf8fd 100644
+--- a/xlib/Extension.cpp
++++ b/xlib/Extension.cpp
+@@ -2,60 +2,64 @@
+  * Copyright 2021, Haiku, Inc. All rights reserved.
+  * Distributed under the terms of the MIT license.
+  */
++#include <AK/HashMap.h>
++#include <AK/Format.h>
+ #include "Extension.h"
+ 
+-#include <map>
+-
+-#include "Debug.h"
+-
++namespace XLib {
+ extern "C" {
++#define register
+ #include <X11/Xlib.h>
+ #include <X11/Xlibint.h>
++#undef register
+ }
++}
++
++#define UNIMPLEMENTED() dbgln("Not implemented: {}", __func__)
+ 
+ static int sLastExtension = 1;
+ 
+-static std::map<int, _XExtension*> sExtensions;
++static AK::HashMap<int, XLib::_XExtension*> sExtensions;
+ 
+ void
+-_x_extensions_close(Display* dpy)
++_x_extensions_close(XLib::Display* dpy)
+ {
+-	for (const auto& it : sExtensions) {
+-		if (it.second->close_display)
+-			it.second->close_display(dpy, &it.second->codes);
+-	}
+-	sExtensions.clear();
++   for (const auto& it : sExtensions) {
++       if (it.value->close_display)
++           it.value->close_display(dpy, &it.value->codes);
++   }
++   sExtensions.clear();
+ }
+ 
+-extern "C" XExtCodes*
+-XAddExtension(Display* dpy)
++extern "C" XLib::XExtCodes*
++XLib::XAddExtension(Display* /*dpy*/)
+ {
+-	const int id = sLastExtension++;
+-	_XExtension* extension = new _XExtension;
+-	extension->codes.extension = id;
++    const int id = sLastExtension++;
++   	_XExtension* extension = new _XExtension;
++   	extension->codes.extension = id;
+ 
+-	// arbitrary
+-	extension->codes.major_opcode = id;
+-	extension->codes.first_event = id * 100000;
+-	extension->codes.first_error = id * 100000;
+-	sExtensions.insert({id, extension});
+-	return &extension->codes;
++   	// arbitrary
++   	extension->codes.major_opcode = id;
++   	extension->codes.first_event = id * 100000;
++  	extension->codes.first_error = id * 100000;
++    sExtensions.set(id, extension);
++    return &extension->codes;
+ }
+ 
+-extern "C" CloseDisplayType
+-XESetCloseDisplay(Display* dpy, int extension_id, CloseDisplayType proc)
++extern "C" XLib::CloseDisplayType
++XLib::XESetCloseDisplay(Display* /*dpy*/, int extension_id, CloseDisplayType proc)
+ {
+-	const auto& it = sExtensions.find(extension_id);
+-	if (it == sExtensions.end())
+-		return NULL;
++	const auto& it = sExtensions.get(extension_id);
++	if (!it.has_value())
++       	return NULL;
+ 
+-	CloseDisplayType last = it->second->close_display;
+-	it->second->close_display = proc;
++	CloseDisplayType last = it.value()->close_display;
++	it.value()->close_display = proc;
+ 	return last;
+ }
+ 
+ extern "C" Bool
+-XQueryExtension(Display* display, const char* name,
++XLib::XQueryExtension(Display* display, const char* name,
+ 	int* major_opcode_return, int* first_event_return, int* first_error_return)
+ {
+ 	UNIMPLEMENTED();
+@@ -63,14 +67,14 @@ XQueryExtension(Display* display, const char* name,
+ }
+ 
+ extern "C" char**
+-XListExtensions(Display* dpy, int* nextensions_return)
++XLib::XListExtensions(Display* dpy, int* nextensions_return)
+ {
+ 	UNIMPLEMENTED();
+ 	return NULL;
+ }
+ 
+ extern "C" int
+-XFreeExtensionList(char** list)
++XLib::XFreeExtensionList(char** list)
+ {
+ 	return Success;
+ }
+diff --git a/xlib/Extension.h b/xlib/Extension.h
+index b310745..62419a6 100644
+--- a/xlib/Extension.h
++++ b/xlib/Extension.h
+@@ -4,8 +4,10 @@
+  */
+ #pragma once
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ }
++}
+ 
+-void _x_extensions_close(Display *dpy);
++void _x_extensions_close(XLib::Display *dpy);
+diff --git a/xlib/Font.cpp b/xlib/Font.cpp
+index 62269c8..bf1a935 100644
+--- a/xlib/Font.cpp
++++ b/xlib/Font.cpp
+@@ -3,47 +3,45 @@
+  * Copyright 2021, Haiku, Inc. All rights reserved.
+  * Distributed under the terms of the MIT license.
+  */
+-#include "Font.h"
++#include <AK/HashMap.h>
++#include <AK/String.h>
++#include <LibGfx/Font/Font.h>
++#include <LibGfx/Font/FontDatabase.h>
+ 
+-#include <interface/Font.h>
+-#include <interface/Rect.h>
+-#include <support/StringList.h>
++#include "Font.h"
+ 
+-#include <stdlib.h>
+-#include <stdio.h>
+ #include <ctype.h>
+-#include <map>
+-
+-#include "Drawing.h"
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ #include <X11/Xatom.h>
+ }
++}
+ 
+ struct XLFD {
+-	BString foundry = "*";
+-	BString family = "*";
+-	BString weight = "*";
+-	char slant = '*';
+-	BString setwidth = "*";
+-	BString add_style = "*";
+-	int pixels = 0, decipoints = 0;
+-	int resolution_x = 0, resolution_y = 0;
+-	char spacing = '*';
+-	int average_width = 0;
+-	BString charset = "*";
+-	BString encoding = "*";
++    String foundry = "*";
++    String family = "*";
++    String weight = "*";
++    char slant = '*';
++    String setwidth = "*";
++    String add_style = "*";
++    int pixels = 0, decipoints = 0;
++    int resolution_x = 0, resolution_y = 0;
++    char spacing = '*';
++    int average_width = 0;
++    String charset = "*";
++    String encoding = "*";
+ };
+ 
+-static XLFD create_xlfd(font_family* family, font_style* style, uint16 face, uint32 flag);
++static XLFD create_xlfd(String family, String variant);
+ 
+ 
+ struct FontEntry {
+-	XLFD xlfd;
+-	font_style style;
++    XLFD xlfd;
++    String variant;
+ };
+-static std::map<uint16_t, FontEntry*> sFonts;
++static AK::HashMap<uint16_t, FontEntry*> sFonts;
+ static uint16_t sLastFontID = 1;
+ 
+ enum {
+@@ -55,340 +53,345 @@ enum {
+ static uint16_t sDefaultFonts[COUNT_DEFAULT_FONTS] = {};
+ 
+ struct FontSet {
+-	Display* display;
+-	Font font;
+-	XFontSetExtents extents;
++	XLib::Display* display;
++	XLib::Font font;
++	XLib::XFontSetExtents extents;
+ };
+ 
+ 
+-static Font
++static XLib::Font
+ make_Font(uint16_t id, uint16_t pointSize)
+ {
+-	return (id & UINT16_MAX) | ((pointSize & UINT16_MAX) << 16);
++    return (id & UINT16_MAX) | ((pointSize & UINT16_MAX) << 16);
+ }
+ 
+ static void
+-extract_Font(Font font, uint16_t& id, uint16_t& pointSize)
++extract_Font(XLib::Font font, uint16_t& id, uint16_t& pointSize)
+ {
+-	id = (font & UINT16_MAX);
+-	pointSize = (font >> 16) & UINT16_MAX;
++    id = (font & UINT16_MAX);
++    pointSize = (font >> 16) & UINT16_MAX;
+ }
+ 
+ static FontEntry*
+ lookup_font(int id)
+ {
+-	const auto& it = sFonts.find(id);
+-	if (it == sFonts.end())
+-		return NULL;
+-	return it->second;
++    const auto& it = sFonts.get(id);
++    if(it.has_value())
++        return it.value();
++
++    return nullptr;
+ }
+ 
+ void
+ _x_init_font()
+ {
+-	if (!sFonts.empty())
+-		return;
+-
+-	font_family default_plain_family, default_fixed_family;
+-	font_style defailt_plain_style, default_fixed_style;
+-	be_plain_font->GetFamilyAndStyle(&default_plain_family, &defailt_plain_style);
+-	be_fixed_font->GetFamilyAndStyle(&default_fixed_family, &default_fixed_style);
+-
+-	font_family family;
+-	font_style style;
+-	const int max_family = count_font_families();
+-	for(int i = 0; i != max_family; i++) {
+-		get_font_family(i, &family);
+-		const int max_style = count_font_styles(family);
+-		for (int j = 0; j < max_style; j++) {
+-			uint32 flag;
+-			uint16 face;
+-			get_font_style(family, j, &style, &face, &flag);
+-
+-			FontEntry* font = new FontEntry;
+-			memcpy(font->style, style, sizeof(style));
+-			font->xlfd = create_xlfd(&family, &style, face, flag);
+-			const int id = sLastFontID++;
+-			sFonts.insert({id, font});
+-
+-			// Check if this is one of the default fonts.
+-			if (strcmp(family, default_plain_family) == 0 && strcmp(style, defailt_plain_style) == 0)
+-				sDefaultFonts[DEFAULT_PLAIN_FONT] = id;
+-			else if (strcmp(family, default_fixed_family) == 0 && strcmp(style, default_fixed_style) == 0)
+-				sDefaultFonts[DEFAULT_FIXED_FONT] = id;
+-		}
+-	}
++    if (sFonts.size() != 0)
++        return;
++
++
++    Gfx::FontDatabase::the().set_default_font_query("Katica 10 400 0"sv);
++    Gfx::FontDatabase::the().set_fixed_width_font_query("Csilla 10 400 0"sv);
++
++    auto& default_plain_font = Gfx::FontDatabase::the().default_font();
++    auto& default_fixed_Font =Gfx::FontDatabase::the().default_fixed_width_font();
++
++    {
++        FontEntry* font = new FontEntry;
++        font->variant = default_plain_font.variant();
++        font->xlfd = create_xlfd(default_plain_font.family(), default_plain_font.variant());
++        sFonts.set(sLastFontID, font);
++        sDefaultFonts[DEFAULT_PLAIN_FONT] = sLastFontID;
++        sLastFontID++;
++    }
++
++    {
++        FontEntry* font = new FontEntry;
++        font->variant = default_fixed_Font.variant();
++        font->xlfd = create_xlfd(default_fixed_Font.family(), default_fixed_Font.variant());
++        sFonts.set(sLastFontID, font);
++        sDefaultFonts[DEFAULT_FIXED_FONT] = sLastFontID;
++        sLastFontID++;
++    }
+ }
+ 
+ void
+ _x_finalize_font()
+ {
+-	for (const auto& item : sFonts)
+-		delete item.second;
++	// for (const auto& item : sFonts)
++	// 	delete item.value();
+ 	sFonts.clear();
+ }
+ 
+-BFont
+-bfont_from_font(Font fid)
++AK::RefPtr<Gfx::Font> gfxfont_from_font(XLib::Font fid)
+ {
+-	uint16_t id, pointSize;
+-	extract_Font(fid, id, pointSize);
+-
+-	BFont font;
+-	FontEntry* fontId = lookup_font(id);
+-	if (!fontId)
+-		return font;
+-	font.SetFamilyAndStyle(fontId->xlfd.family, fontId->style);
+-	if (pointSize)
+-		font.SetSize(pointSize);
+-	return font;
+-}
++    uint16_t id, pointSize;
++    extract_Font(fid, id, pointSize);
+ 
+-static char
+-get_slant(font_style* style, uint16 face)
+-{
+-	if ((face & B_ITALIC_FACE) || strstr(*style, "Italic") == NULL)
+-		return 'r';
+-	return 'i';
++    FontEntry* fontId = lookup_font(id);
++    if (!fontId)
++        return Gfx::FontDatabase::the().default_font();
++
++    auto font = Gfx::FontDatabase::the().get(fontId->xlfd.family, fontId->variant, pointSize);
++    if(font.is_null())
++        return Gfx::FontDatabase::the().default_font();
++    return font;
+ }
+ 
+ static char
+-get_spacing(uint32 flag)
++get_slant(String variant)
+ {
+-	if (flag & B_IS_FIXED)
+-		return 'm';
+-	return 'p';
++    if (!variant.equals_ignoring_case("Italic"sv))
++        return 'r';
++    return 'i';
+ }
+ 
+-static const char*
+-get_weight(font_style* style, uint16 face)
+-{
+-	static const char* medium = "medium";
+-	static const char* bold = "bold";
+-	if ((face & B_BOLD_FACE) || strstr(*style, "Bold") != NULL)
+-		return bold;
+-	return medium;
+-}
++// static char
++// get_spacing(uint32_t flag)
++// {
++// 	if (flag & B_IS_FIXED)
++// 		return 'm';
++// 	return 'p';
++// }
+ 
+ static const char*
+-get_encoding(font_family* family)
++get_weight(String variant)
+ {
+-	static const char* iso10646_8 = "iso10646-8";
+-	static const char* iso8859_1 = "iso8859-1";
+-	static const char* hankaku = "jisx0201.1976-0";
+-	static const char* kanji = "jisx0208.1983-0";
+-
+-	static const char* testchar = "\xEF\xBD\xB1\xE4\xBA\x9C";
+-
+-	BFont font;
+-	font.SetFamilyAndFace(*family, B_REGULAR_FACE);
+-	switch (font.Encoding()) {
+-	case B_UNICODE_UTF8:
+-		return iso10646_8;
+-	case B_ISO_8859_1:
+-		return iso8859_1;
+-	default: {
+-		static bool check[2];
+-		font.GetHasGlyphs(testchar, 2, check);
+-		if (check[1])
+-			return kanji;
+-		if (check[0])
+-			return hankaku;
+-		// presume Latin?
+-		return iso8859_1;
+-	}
+-	}
++    static const char* medium = "medium";
++    static const char* bold = "bold";
++    if (variant.equals_ignoring_case("bold"sv))
++        return bold;
++    return medium;
+ }
+ 
++// static const char*
++// get_encoding(font_family* family)
++// {
++// 	static const char* iso10646_8 = "iso10646-8";
++// 	static const char* iso8859_1 = "iso8859-1";
++// 	static const char* hankaku = "jisx0201.1976-0";
++// 	static const char* kanji = "jisx0208.1983-0";
++
++// 	static const char* testchar = "\xEF\xBD\xB1\xE4\xBA\x9C";
++
++// 	BFont font;
++// 	font.SetFamilyAndFace(*family, B_REGULAR_FACE);
++// 	switch (font.Encoding()) {
++// 	case B_UNICODE_UTF8:
++// 		return iso10646_8;
++// 	case B_ISO_8859_1:
++// 		return iso8859_1;
++// 	default: {
++// 		static bool check[2];
++// 		font.GetHasGlyphs(testchar, 2, check);
++// 		if (check[1])
++// 			return kanji;
++// 		if (check[0])
++// 			return hankaku;
++// 		// presume Latin?
++// 		return iso8859_1;
++// 	}
++// 	}
++// }
++
+ static XLFD
+-create_xlfd(font_family* family, font_style* style, uint16 face, uint32 flag)
++create_xlfd(String family, String variant)
+ {
++	// XLFD xlfd;
++	// xlfd.foundry = "TTFont";
++	// xlfd.family = *family;
++	// xlfd.weight = get_weight(style, face);
++	// xlfd.slant = get_slant(style, face);
++	// xlfd.setwidth = "normal";
++	// xlfd.add_style = "";
++	// xlfd.spacing = get_spacing(flag);
++
++	// xlfd.charset = get_encoding(family);
++	// xlfd.charset.MoveCharsInto(xlfd.encoding, xlfd.charset.FindLast('-') + 1, 8);
++	// xlfd.charset.RemoveLast("-");
++	// return xlfd;
+ 	XLFD xlfd;
+-	xlfd.foundry = "TTFont";
+-	xlfd.family = *family;
+-	xlfd.weight = get_weight(style, face);
+-	xlfd.slant = get_slant(style, face);
+-	xlfd.setwidth = "normal";
+-	xlfd.add_style = "";
+-	xlfd.spacing = get_spacing(flag);
+-
+-	xlfd.charset = get_encoding(family);
+-	xlfd.charset.MoveCharsInto(xlfd.encoding, xlfd.charset.FindLast('-') + 1, 8);
+-	xlfd.charset.RemoveLast("-");
+-	return xlfd;
++    xlfd.foundry = "TTFont";
++    xlfd.family = family;
++    xlfd.weight = get_weight(variant);
++    xlfd.slant = get_slant(variant);
++    xlfd.setwidth = "normal";
++    xlfd.add_style = "";
++    xlfd.spacing = 'p'; // FIXME
++
++    xlfd.charset = "iso10646-8";
++    return xlfd;
+ }
+ 
+ static XLFD
+ parse_xlfd(const char* string)
+ {
+-	XLFD xlfd;
+-	const BString bstring(string);
+-	if (bstring.FindFirst('-') < 0) {
+-		// Special case: set family only.
+-		xlfd.family = bstring;
+-
+-		// Special case: fixed has a different default size.
+-		if (bstring == "fixed")
+-			xlfd.decipoints = 100;
+-
+-		return xlfd;
+-	}
+-
+-	BStringList values;
+-	bstring.Split("-", false, values);
+-
+-	for (int field = 0; field < values.CountStrings(); field++) {
+-		const BString value = values.StringAt(field);
+-
+-		switch (field) {
+-		case 1: xlfd.foundry = value; break;
+-		case 2: xlfd.family = value; break;
+-		case 3: xlfd.weight = value; break;
+-		case 4: xlfd.slant = value.ByteAt(0); break;
+-		case 5: xlfd.setwidth = value; break;
+-		case 6: xlfd.add_style = value; break;
+-		case 7: xlfd.pixels			= strtol(value.String(), NULL, 10); break;
+-		case 8: xlfd.decipoints		= strtol(value.String(), NULL, 10); break;
+-		case 9: xlfd.resolution_x	= strtol(value.String(), NULL, 10); break;
+-		case 10: xlfd.resolution_y	= strtol(value.String(), NULL, 10); break;
+-		case 11: xlfd.spacing = value.ByteAt(0); break;
+-		case 12: xlfd.average_width	= strtol(value.String(), NULL, 10); break;
+-		case 13: xlfd.charset = value; break;
+-		case 14: xlfd.encoding = value; break;
+-		break;
+-		}
+-	}
+-	return xlfd;
++    XLFD xlfd;
++    const String bstring(string);
++    if (!bstring.find('-').has_value()) {
++        // Special case: set family only.
++        xlfd.family = bstring;
++
++        // Special case: fixed has a different default size.
++        if (bstring == "fixed")
++            xlfd.decipoints = 100;
++
++        return xlfd;
++    }
++
++    auto values = bstring.split('-');
++
++    for (size_t field = 0; field < values.size(); field++) {
++        const auto value = values[field];
++
++        switch (field) {
++        case 1: xlfd.foundry = value; break;
++        case 2: xlfd.family = value; break;
++        case 3: xlfd.weight = value; break;
++        case 4: xlfd.slant = value[0]; break;
++        case 5: xlfd.setwidth = value; break;
++        case 6: xlfd.add_style = value; break;
++        case 7: xlfd.pixels			= strtol(value.characters(), NULL, 10); break;
++        case 8: xlfd.decipoints		= strtol(value.characters(), NULL, 10); break;
++        case 9: xlfd.resolution_x	= strtol(value.characters(), NULL, 10); break;
++        case 10: xlfd.resolution_y	= strtol(value.characters(), NULL, 10); break;
++        case 11: xlfd.spacing = value[0]; break;
++        case 12: xlfd.average_width	= strtol(value.characters(), NULL, 10); break;
++        case 13: xlfd.charset = value; break;
++        case 14: xlfd.encoding = value; break;
++            break;
++        }
++    }
++    return xlfd;
+ }
+ 
+-static BString
+-serialize_xlfd(const XLFD& xlfd)
+-{
+-	BString string;
+-	string.SetToFormat("-%s-%s-%s-%c-%s-%s-%d-%d-%d-%d-%c-%d-%s-%s",
+-		xlfd.foundry.String(), xlfd.family.String(), xlfd.weight.String(),
+-		xlfd.slant, xlfd.setwidth.String(), xlfd.add_style.String(),
+-		xlfd.pixels, xlfd.decipoints, xlfd.resolution_x, xlfd.resolution_y,
+-		xlfd.spacing, xlfd.average_width, xlfd.charset.String(), xlfd.encoding.String());
+-	return string;
+-}
++// static BString
++// serialize_xlfd(const XLFD& xlfd)
++// {
++// 	BString string;
++// 	string.SetToFormat("-%s-%s-%s-%c-%s-%s-%d-%d-%d-%d-%c-%d-%s-%s",
++// 		xlfd.foundry.String(), xlfd.family.String(), xlfd.weight.String(),
++// 		xlfd.slant, xlfd.setwidth.String(), xlfd.add_style.String(),
++// 		xlfd.pixels, xlfd.decipoints, xlfd.resolution_x, xlfd.resolution_y,
++// 		xlfd.spacing, xlfd.average_width, xlfd.charset.String(), xlfd.encoding.String());
++// 	return string;
++// }
+ 
+ static bool
+ compare_xlfds(const XLFD& compare, const XLFD& base, uint16_t baseID)
+ {
+-	const BString wild_string = "*";
++    const String wild_string = "*";
+ 
+-	// skip: foundry, resolution_x, resolution_y, average_width
++    // skip: foundry, resolution_x, resolution_y, average_width
+ #define COMPARE(FIELD, WILD) (compare.FIELD == WILD || base.FIELD == WILD || compare.FIELD == base.FIELD)
+ #define COMPARE_CHAR(FIELD) \
+ 	(compare.FIELD == '*' || base.FIELD == '*' \
+ 		|| compare.FIELD == base.FIELD || tolower(compare.FIELD) == base.FIELD)
+ #define COMPARE_STRING(FIELD) \
+ 	(compare.FIELD == wild_string || base.FIELD == wild_string \
+-		|| compare.FIELD.ICompare(base.FIELD) == 0)
+-
+-	if (!COMPARE_STRING(family)) {
+-		// Special case: "Helvetica" matches the default display font,
+-		// and "fixed" or "cursor" matches the default fixed font.
+-		bool match = false;
+-		if (baseID == sDefaultFonts[DEFAULT_PLAIN_FONT] && compare.family.ICompare("Helvetica") == 0)
+-			match = true;
+-		if (baseID == sDefaultFonts[DEFAULT_FIXED_FONT] && compare.family.ICompare("fixed") == 0)
+-			match = true;
+-		if (baseID == sDefaultFonts[DEFAULT_FIXED_FONT] && compare.family.ICompare("cursor") == 0)
+-			match = true;
+-		if (!match)
+-			return false;
+-	}
+-	if (!COMPARE_STRING(weight))
+-		return false;
+-	if (!COMPARE_CHAR(slant))
+-		return false;
+-	if (!COMPARE_STRING(setwidth))
+-		return false;
+-	if (!COMPARE_STRING(add_style))
+-		return false;
+-	if (!COMPARE(pixels, 0))
+-		return false;
+-	if (!COMPARE(decipoints, 0))
+-		return false;
+-	if (!COMPARE_CHAR(spacing))
+-		return false;
+-	if (!COMPARE_STRING(charset))
+-		return false;
+-	if (!COMPARE_STRING(encoding))
+-		return false;
++		|| compare.FIELD.equals_ignoring_case(base.FIELD))
++
++    if (!COMPARE_STRING(family)) {
++        // Special case: "Helvetica" matches the default display font,
++        // and "fixed" or "cursor" matches the default fixed font.
++        bool match = false;
++        if (baseID == sDefaultFonts[DEFAULT_PLAIN_FONT] && compare.family.equals_ignoring_case("Helvetica"sv))
++            match = true;
++        if (baseID == sDefaultFonts[DEFAULT_FIXED_FONT] && compare.family.equals_ignoring_case("fixed"sv))
++            match = true;
++        if (baseID == sDefaultFonts[DEFAULT_FIXED_FONT] && compare.family.equals_ignoring_case("cursor"sv))
++            match = true;
++        if (!match)
++            return false;
++    }
++    if (!COMPARE_STRING(weight))
++        return false;
++    if (!COMPARE_CHAR(slant))
++        return false;
++    if (!COMPARE_STRING(setwidth))
++        return false;
++    if (!COMPARE_STRING(add_style))
++        return false;
++    if (!COMPARE(pixels, 0))
++        return false;
++    if (!COMPARE(decipoints, 0))
++        return false;
++    if (!COMPARE_CHAR(spacing))
++        return false;
++    if (!COMPARE_STRING(charset))
++        return false;
++    if (!COMPARE_STRING(encoding))
++        return false;
+ 
+ #undef COMPARE
+ 
+-	return true;
++    return true;
+ }
+ 
+-extern "C" char**
+-XListFontsWithInfo(Display* display,
+-	const char*	pattern, int maxNames, int* count, XFontStruct** info_return)
++// extern "C" char**
++// XListFontsWithInfo(Display* display,
++// 	const char*	pattern, int maxNames, int* count, XFontStruct** info_return)
++// {
++// 	*count = 0;
++
++// 	XLFD patternXLFD = parse_xlfd(pattern);
++// 	patternXLFD.decipoints = patternXLFD.pixels = 0;
++
++// 	char** nameList = (char**)malloc(maxNames * sizeof(char*) + 1);
++// 	for (const auto& font : sFonts) {
++// 		if (compare_xlfds(patternXLFD, font.second->xlfd, font.first)) {
++// 			int index = (*count)++;
++// 			nameList[index] = strdup(serialize_xlfd(font.second->xlfd).String());
++// 			if (info_return)
++// 				info_return[index] = XQueryFont(display, font.first);
++// 		}
++
++// 		if ((*count) == maxNames)
++// 			break;
++// 	}
++
++// 	nameList[*count] = 0;
++// 	return nameList;
++// }
++
++extern "C" XLib::Font
++XLib::XLoadFont(Display* dpy, const char* name)
+ {
+-	*count = 0;
+-
+-	XLFD patternXLFD = parse_xlfd(pattern);
+-	patternXLFD.decipoints = patternXLFD.pixels = 0;
+-
+-	char** nameList = (char**)malloc(maxNames * sizeof(char*) + 1);
+-	for (const auto& font : sFonts) {
+-		if (compare_xlfds(patternXLFD, font.second->xlfd, font.first)) {
+-			int index = (*count)++;
+-			nameList[index] = strdup(serialize_xlfd(font.second->xlfd).String());
+-			if (info_return)
+-				info_return[index] = XQueryFont(display, font.first);
+-		}
+-
+-		if ((*count) == maxNames)
+-			break;
+-	}
+-
+-	nameList[*count] = 0;
+-	return nameList;
+-}
+-
+-extern "C" Font
+-XLoadFont(Display* dpy, const char* name)
+-{
+-	XLFD patternXLFD = parse_xlfd(name);
+-
+-	// Clear out sizes before comparing.
+-	uint16 ptSize = patternXLFD.decipoints / 10;
+-	if (ptSize == 0)
+-		ptSize = patternXLFD.pixels * 0.75f;
+-	patternXLFD.decipoints = patternXLFD.pixels = 0;
+-
+-	int id = 0;
+-	for (const auto& font : sFonts) {
+-		if (compare_xlfds(patternXLFD, font.second->xlfd, font.first)) {
+-			id = font.first;
+-			break;
+-		}
+-	}
+-
+-	if (id != 0)
+-		return make_Font(id, ptSize);
+-	return 0;
++    XLFD patternXLFD = parse_xlfd(name);
++
++    // Clear out sizes before comparing.
++    uint16_t ptSize = patternXLFD.decipoints / 10;
++    if (ptSize == 0)
++        ptSize = patternXLFD.pixels * 0.75f;
++    patternXLFD.decipoints = patternXLFD.pixels = 0;
++
++    int id = 0;
++    for (const auto& font : sFonts) {
++        if (compare_xlfds(patternXLFD, font.value->xlfd, font.key)) {
++            id = font.key;
++            break;
++        }
++    }
++
++    if (id != 0)
++        return make_Font(id, ptSize);
++    return 0;
+ }
+ 
+ extern "C" int
+-XUnloadFont(Display* dpy, Font font)
++XLib::XUnloadFont(Display* dpy, Font font)
+ {
+ 	// Nothing to do.
+ 	return Success;
+ }
+ 
+ extern "C" char**
+-XListFonts(Display *dpy, const char *pattern, int maxNames, int *count)
++XLib::XListFonts(Display *dpy, const char *pattern, int maxNames, int *count)
+ {
+ 	return XListFontsWithInfo(dpy, pattern, maxNames, count, NULL);
+ }
+ 
+ extern "C" int
+-XFreeFontNames(char** list)
++XLib::XFreeFontNames(char** list)
+ {
+ 	if (list) {
+ 		int i = 0;
+@@ -401,181 +404,177 @@ XFreeFontNames(char** list)
+ 	return 0;
+ }
+ 
+-extern "C" XFontStruct*
+-XQueryFont(Display *display, Font id)
++extern "C" XLib::XFontStruct*
++XLib::XQueryFont(Display */*display*/, Font id)
+ {
+-	FontEntry* ident = lookup_font(id);
+-	if (!ident)
+-		return NULL;
++    FontEntry* ident = lookup_font(id);
++    if (!ident)
++        return NULL;
+ 
+-	BFont bfont = bfont_from_font(id);
++    auto bfont = gfxfont_from_font(id);
+ 
+-	XFontStruct* font = (XFontStruct*)calloc(1, sizeof(XFontStruct));
+-	font->fid = id;
+-	font->direction = (bfont.Direction() == B_FONT_LEFT_TO_RIGHT)
+-		? FontLeftToRight : FontRightToLeft;
++    XFontStruct* font = (XFontStruct*)calloc(1, sizeof(XFontStruct));
++    font->fid = id;
++    font->direction = FontLeftToRight; // FIXME
++    font->min_char_or_byte2 = 0;
++    font->max_char_or_byte2 = 0xFF;
++    font->min_byte1 = 0;
++    font->max_byte1 = 0;
+ 
+-	font->min_char_or_byte2 = 0;
+-	font->max_char_or_byte2 = 0xFF;
+-	font->min_byte1 = 0;
+-	font->max_byte1 = 0;
++    font->ascent = font->max_bounds.ascent = bfont->pixel_metrics().ascent;
++    font->descent = font->max_bounds.descent = bfont->pixel_metrics().descent;
+ 
+-	font_height height;
+-	bfont.GetHeight(&height);
+-	font->ascent = font->max_bounds.ascent = height.ascent;
+-	font->descent = font->max_bounds.descent = height.descent;
++    font->min_bounds.width = bfont->width("."sv);
++    font->max_bounds.width = bfont->width("@"sv);
+ 
+-	font->min_bounds.width = bfont.StringWidth(".");
+-	font->max_bounds.width = bfont.StringWidth("@");
+-
+-	return font;
++    return font;
+ }
+ 
+-extern "C" XFontStruct*
+-XLoadQueryFont(Display *display, const char *name)
++extern "C" XLib::XFontStruct*
++XLib::XLoadQueryFont(Display *display, const char *name)
+ {
+-	return XQueryFont(display, XLoadFont(display, name));
++    return XQueryFont(display, XLoadFont(display, name));
+ }
+ 
+ extern "C" int
+-XFreeFont(Display *dpy, XFontStruct *fs)
++XLib::XFreeFont(Display *dpy, XFontStruct *fs)
+ {
+ 	free(fs);
+ 	return Success;
+ }
+ 
+-extern "C" XFontSet
+-XCreateFontSet(Display* dpy, const char* base_font_name_list,
+-	char*** missing_charset_list_return, int* missing_charset_count_return, char** def_string_return)
+-{
+-	BStringList fonts;
+-	BString(base_font_name_list).Split(",", true, fonts);
+-
+-	// As we deal with everything in UTF-8 internally, we do not need
+-	// to deal with encodings. So, just load fonts from the list till we
+-	// succeed with at least one.
+-	Font font = 0;
+-	for (int i = 0; i < fonts.CountStrings(); i++) {
+-		font = XLoadFont(dpy, fonts.StringAt(i).String());
+-		if (font != 0)
+-			break;
+-	}
+-	if (font == 0)
+-		return NULL;
+-
+-	FontSet* fontset = new FontSet;
+-	fontset->display = dpy;
+-	fontset->font = font;
+-
+-	XFontStruct* st = XQueryFont(dpy, font);
+-
+-	// Come up with some kind of values for the extents.
+-	// TODO: How important are these? How to improve them?
+-	fontset->extents.max_ink_extent = make_xrect(0, -st->max_bounds.ascent,
+-		st->max_bounds.width, st->max_bounds.ascent + st->max_bounds.descent);
+-	fontset->extents.max_logical_extent = fontset->extents.max_ink_extent;
+-
+-	XFreeFont(dpy, st);
+-
+-	if (missing_charset_list_return) {
+-		*missing_charset_list_return = NULL;
+-		*missing_charset_count_return = 0;
+-	}
+-	if (def_string_return)
+-		*def_string_return = NULL;
+-	return (XFontSet)fontset;
+-}
+-
+-extern "C" int
+-XFontsOfFontSet(XFontSet font_set,
+-	XFontStruct*** font_struct_list_return, char*** font_name_list_return)
+-{
+-	FontSet* fontset = (FontSet*)font_set;
+-
+-	XFontStruct** structs = (XFontStruct**)calloc(sizeof(XFontStruct*), 1);
+-	structs[0] = XQueryFont(fontset->display, fontset->font);
+-
+-	if (font_name_list_return) {
+-		char** names = (char**)calloc(sizeof(char*), 1);
+-		Atom name = None;
+-		XGetFontProperty(structs[0], XA_FONT, &name);
+-		names[0] = XGetAtomName(fontset->display, name);
+-	}
+-
+-	if (font_struct_list_return) {
+-		*font_struct_list_return = structs;
+-	} else {
+-		XFreeFont(fontset->display, structs[0]);
+-		free(structs);
+-	}
+-	return Success;
+-}
+-
+-extern "C" XFontSetExtents*
+-XExtentsOfFontSet(XFontSet xf)
+-{
+-	return &((FontSet*)xf)->extents;
+-}
+-
+-extern "C" void
+-XFreeFontSet(Display* dpy, XFontSet xf)
+-{
+-	FontSet* fontset = (FontSet*)xf;
+-	XUnloadFont(dpy, fontset->font);
+-	delete fontset;
+-}
+-
+-extern "C" Bool
+-XGetFontProperty(XFontStruct* font_struct, Atom atom, Atom* value_return)
+-{
+-	uint16_t id, pointSize;
+-	extract_Font(font_struct->fid, id, pointSize);
+-	if (atom == XA_FONT) {
+-		for (const auto& font : sFonts) {
+-		   if (font.first != id)
+-			   continue;
+-		   *value_return = XInternAtom(NULL, serialize_xlfd(font.second->xlfd).String(), False);
+-		   return True;
+-		}
+-	}
+-	return False;
+-}
+-
+-extern "C" int
+-XTextWidth(XFontStruct* font_struct, const char *string, int count)
+-{
+-	BFont bfont = bfont_from_font(font_struct->fid);
+-	return bfont.StringWidth(string, count);
+-}
+-
+-extern "C" int
+-XTextExtents(XFontStruct* font_struct, const char* string, int nchars,
+-	int* direction_return, int* font_ascent_return, int* font_descent_return, XCharStruct* overall_return)
+-{
+-	const BFont bfont = bfont_from_font(font_struct->fid);
+-	BString copy(string, nchars);
+-	const char* strings[] = {copy.String()};
+-	BRect boundingBoxes[1];
+-	bfont.GetBoundingBoxesForStrings(strings, 1, B_SCREEN_METRIC, NULL, boundingBoxes);
+-
+-	if (direction_return)
+-		*direction_return = font_struct->direction;
+-	if (font_ascent_return)
+-		*font_ascent_return = font_struct->ascent;
+-	if (font_descent_return)
+-		*font_descent_return = font_struct->descent;
+-
+-	memset(overall_return, 0, sizeof(XCharStruct));
+-	overall_return->ascent = boundingBoxes[0].top;
+-	overall_return->descent = boundingBoxes[0].bottom;
+-	overall_return->width = boundingBoxes[0].IntegerWidth() + 1;
+-	return Success;
+-}
+-
+-extern "C" int
+-Xutf8TextEscapement(XFontSet font_set, const char* string, int num_bytes)
+-{
+-	XFontStruct dummy;
+-	dummy.fid = ((FontSet*)font_set)->font;
+-	return XTextWidth(&dummy, string, num_bytes);
+-}
++// extern "C" XFontSet
++// XCreateFontSet(Display* dpy, const char* base_font_name_list,
++// 	char*** missing_charset_list_return, int* missing_charset_count_return, char** def_string_return)
++// {
++// 	BStringList fonts;
++// 	BString(base_font_name_list).Split(",", true, fonts);
++
++// 	// As we deal with everything in UTF-8 internally, we do not need
++// 	// to deal with encodings. So, just load fonts from the list till we
++// 	// succeed with at least one.
++// 	Font font = 0;
++// 	for (int i = 0; i < fonts.CountStrings(); i++) {
++// 		font = XLoadFont(dpy, fonts.StringAt(i).String());
++// 		if (font != 0)
++// 			break;
++// 	}
++// 	if (font == 0)
++// 		return NULL;
++
++// 	FontSet* fontset = new FontSet;
++// 	fontset->display = dpy;
++// 	fontset->font = font;
++
++// 	XFontStruct* st = XQueryFont(dpy, font);
++
++// 	// Come up with some kind of values for the extents.
++// 	// TODO: How important are these? How to improve them?
++// 	fontset->extents.max_ink_extent = make_xrect(0, -st->max_bounds.ascent,
++// 		st->max_bounds.width, st->max_bounds.ascent + st->max_bounds.descent);
++// 	fontset->extents.max_logical_extent = fontset->extents.max_ink_extent;
++
++// 	XFreeFont(dpy, st);
++
++// 	if (missing_charset_list_return) {
++// 		*missing_charset_list_return = NULL;
++// 		*missing_charset_count_return = 0;
++// 	}
++// 	if (def_string_return)
++// 		*def_string_return = NULL;
++// 	return (XFontSet)fontset;
++// }
++
++// extern "C" int
++// XFontsOfFontSet(XFontSet font_set,
++// 	XFontStruct*** font_struct_list_return, char*** font_name_list_return)
++// {
++// 	FontSet* fontset = (FontSet*)font_set;
++
++// 	XFontStruct** structs = (XFontStruct**)calloc(sizeof(XFontStruct*), 1);
++// 	structs[0] = XQueryFont(fontset->display, fontset->font);
++
++// 	if (font_name_list_return) {
++// 		char** names = (char**)calloc(sizeof(char*), 1);
++// 		Atom name = None;
++// 		XGetFontProperty(structs[0], XA_FONT, &name);
++// 		names[0] = XGetAtomName(fontset->display, name);
++// 	}
++
++// 	if (font_struct_list_return) {
++// 		*font_struct_list_return = structs;
++// 	} else {
++// 		XFreeFont(fontset->display, structs[0]);
++// 		free(structs);
++// 	}
++// 	return Success;
++// }
++
++// extern "C" XFontSetExtents*
++// XExtentsOfFontSet(XFontSet xf)
++// {
++// 	return &((FontSet*)xf)->extents;
++// }
++
++// extern "C" void
++// XFreeFontSet(Display* dpy, XFontSet xf)
++// {
++// 	FontSet* fontset = (FontSet*)xf;
++// 	XUnloadFont(dpy, fontset->font);
++// 	delete fontset;
++// }
++
++// extern "C" Bool
++// XGetFontProperty(XFontStruct* font_struct, Atom atom, Atom* value_return)
++// {
++// 	uint16_t id, pointSize;
++// 	extract_Font(font_struct->fid, id, pointSize);
++// 	if (atom == XA_FONT) {
++// 		for (const auto& font : sFonts) {
++// 		   if (font.first != id)
++// 			   continue;
++// 		   *value_return = XInternAtom(NULL, serialize_xlfd(font.second->xlfd).String(), False);
++// 		   return True;
++// 		}
++// 	}
++// 	return False;
++// }
++
++// extern "C" int
++// XTextWidth(XFontStruct* font_struct, const char *string, int count)
++// {
++// 	BFont bfont = bfont_from_font(font_struct->fid);
++// 	return bfont.StringWidth(string, count);
++// }
++
++// extern "C" int
++// XTextExtents(XFontStruct* font_struct, const char* string, int nchars,
++// 	int* direction_return, int* font_ascent_return, int* font_descent_return, XCharStruct* overall_return)
++// {
++// 	const BFont bfont = bfont_from_font(font_struct->fid);
++// 	BString copy(string, nchars);
++// 	const char* strings[] = {copy.String()};
++// 	BRect boundingBoxes[1];
++// 	bfont.GetBoundingBoxesForStrings(strings, 1, B_SCREEN_METRIC, NULL, boundingBoxes);
++
++// 	if (direction_return)
++// 		*direction_return = font_struct->direction;
++// 	if (font_ascent_return)
++// 		*font_ascent_return = font_struct->ascent;
++// 	if (font_descent_return)
++// 		*font_descent_return = font_struct->descent;
++
++// 	memset(overall_return, 0, sizeof(XCharStruct));
++// 	overall_return->ascent = boundingBoxes[0].top;
++// 	overall_return->descent = boundingBoxes[0].bottom;
++// 	overall_return->width = boundingBoxes[0].IntegerWidth() + 1;
++// 	return Success;
++// }
++
++// extern "C" int
++// Xutf8TextEscapement(XFontSet font_set, const char* string, int num_bytes)
++// {
++// 	XFontStruct dummy;
++// 	dummy.fid = ((FontSet*)font_set)->font;
++// 	return XTextWidth(&dummy, string, num_bytes);
++// }
+diff --git a/xlib/Font.h b/xlib/Font.h
+index 77af9ee..aec6c59 100644
+--- a/xlib/Font.h
++++ b/xlib/Font.h
+@@ -4,13 +4,15 @@
+  */
+ #pragma once
+ 
+-#include <interface/Font.h>
++#include <LibGfx/Font/Font.h>
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xlib.h>
+ }
++}
+ 
+ void _x_init_font();
+ void _x_finalize_font();
+ 
+-BFont bfont_from_font(Font font);
++AK::RefPtr<Gfx::Font> gfxfont_from_font(XLib::Font fid);
+diff --git a/xlib/GC.cpp b/xlib/GC.cpp
+index 874cda5..690eda7 100644
+--- a/xlib/GC.cpp
++++ b/xlib/GC.cpp
+@@ -4,52 +4,53 @@
+  * Distributed under the terms of the MIT license.
+  */
+ 
+-#include <interface/Region.h>
+-#include <interface/Bitmap.h>
+-#include <stdio.h>
+-
+-#include "Drawables.h"
+-#include "Color.h"
+-#include "Font.h"
+-
++#undef None
++#include <LibGUI/Application.h>
++#include "ObjectManager.h"
++#include "Drawing.h"
++#include <LibGfx/Rect.h>
++#include <LibGfx/DisjointRectSet.h>
++
++namespace XLib {
+ extern "C" {
++#define register
+ #include <X11/Xlib.h>
+ #include <X11/Xlibint.h>
+ #include <X11/Xutil.h>
++#undef register
++}
+ }
+-
+-#include "Debug.h"
+ 
+ struct ClipMask {
+-	BRegion region;
++    Gfx::DisjointRectSet region;
+ };
+ 
+-extern "C" GC
+-XCreateGC(Display* display, Window window,
+-	unsigned long mask, XGCValues* gc_values)
++extern "C" XLib::GC
++XLib::XCreateGC(XLib::Display* display, XLib::Window /*window*/,
++    unsigned long mask, XGCValues* gc_values)
+ {
+-	GC gc = new _XGC;
+-	gc->values.function = GXcopy;
+-	gc->values.foreground = BlackPixel(display, 0);
+-	gc->values.background = WhitePixel(display, 0);
+-	gc->values.line_style = LineSolid;
+-	gc->values.line_width = 0;
+-	gc->values.cap_style = CapButt;
+-	gc->values.join_style = JoinMiter;
+-	gc->values.fill_style = FillSolid;
+-	gc->values.fill_rule = EvenOddRule;
+-	gc->values.arc_mode = ArcChord;
+-	gc->values.font = 0;
+-	gc->values.subwindow_mode = ClipByChildren;
+-	gc->values.clip_x_origin = gc->values.clip_y_origin = 0;
+-	gc->values.clip_mask = None;
+-	gc->dirty = True;
+-	XChangeGC(display, gc, mask, gc_values);
+-	return gc;
++    XLib::GC gc = new XLib::_XGC;
++    gc->values.function = GXcopy;
++    gc->values.foreground = BlackPixel(display, 0);
++    gc->values.background = WhitePixel(display, 0);
++    gc->values.line_style = LineSolid;
++    gc->values.line_width = 0;
++    gc->values.cap_style = CapButt;
++    gc->values.join_style = JoinMiter;
++    gc->values.fill_style = FillSolid;
++    gc->values.fill_rule = EvenOddRule;
++    gc->values.arc_mode = ArcChord;
++    gc->values.font = 0;
++    gc->values.subwindow_mode = ClipByChildren;
++    gc->values.clip_x_origin = gc->values.clip_y_origin = 0;
++    gc->values.clip_mask = None;
++    gc->dirty = True;
++    XChangeGC(display, gc, mask, gc_values);
++    return gc;
+ }
+ 
+ extern "C" int
+-XFreeGC(Display* display, GC gc)
++XLib::XFreeGC(Display* display, GC gc)
+ {
+ 	if (gc) {
+ 		delete (ClipMask*)gc->values.clip_mask;
+@@ -59,7 +60,7 @@ XFreeGC(Display* display, GC gc)
+ }
+ 
+ extern "C" int
+-XGetGCValues(Display* display, GC gc, unsigned long mask, XGCValues* values)
++XLib::XGetGCValues(Display* display, GC gc, unsigned long mask, XGCValues* values)
+ {
+ 	if (mask & GCFunction)
+ 		values->function = gc->values.function;
+@@ -117,79 +118,79 @@ XGetGCValues(Display* display, GC gc, unsigned long mask, XGCValues* values)
+ }
+ 
+ extern "C" int
+-XChangeGC(Display *display, GC gc, unsigned long mask, XGCValues *values)
++XLib::XChangeGC(XLib::Display *display, XLib::GC gc, unsigned long mask, XGCValues *values)
+ {
+-	if (mask & GCFunction)
+-		gc->values.function = values->function;
+-	if (mask & GCPlaneMask)
+-		gc->values.plane_mask = values->plane_mask;
+-	if (mask & GCForeground)
+-		gc->values.foreground = values->foreground;
+-	if (mask & GCBackground)
+-		gc->values.background = values->background;
+-	if (mask & GCLineWidth)
+-		gc->values.line_width = values->line_width;
+-	if (mask & GCLineStyle)
+-		gc->values.line_style = values->line_style;
+-	if (mask & GCCapStyle)
+-		gc->values.cap_style = values->cap_style;
+-	if (mask & GCJoinStyle)
+-		gc->values.join_style = values->join_style;
+-	if (mask & GCFillStyle)
+-		gc->values.fill_style = values->fill_style;
+-	if (mask & GCFillRule)
+-		gc->values.fill_rule = values->fill_rule;
+-	if (mask & GCArcMode)
+-		gc->values.arc_mode = values->arc_mode;
+-	if (mask & GCTile)
+-		gc->values.tile = values->tile;
+-	if (mask & GCStipple)
+-		gc->values.stipple = values->stipple;
+-	if (mask & GCTileStipXOrigin)
+-		gc->values.ts_x_origin = values->ts_x_origin;
+-	if (mask & GCTileStipYOrigin)
+-		gc->values.ts_y_origin = values->ts_y_origin;
+-	if (mask & GCFont)
+-		gc->values.font = values->font;
+-	if (mask & GCSubwindowMode)
+-		gc->values.subwindow_mode = values->subwindow_mode;
+-	if (mask & GCGraphicsExposures)
+-		gc->values.graphics_exposures = values->graphics_exposures;
+-	if (mask & GCClipXOrigin)
+-		gc->values.clip_x_origin = values->clip_x_origin;
+-	if (mask & GCClipYOrigin)
+-		gc->values.clip_y_origin = values->clip_y_origin;
+-	if (mask & GCClipMask) {
+-		// Presume this is a real pixmap, as we don't control GCValues.
+-		XSetClipMask(display, gc, values->clip_mask);
+-	}
+-	if (mask & GCDashOffset)
+-		gc->values.dash_offset = values->dash_offset;
++    if (mask & GCFunction)
++        gc->values.function = values->function;
++    if (mask & GCPlaneMask)
++        gc->values.plane_mask = values->plane_mask;
++    if (mask & GCForeground)
++        gc->values.foreground = values->foreground;
++    if (mask & GCBackground)
++        gc->values.background = values->background;
++    if (mask & GCLineWidth)
++        gc->values.line_width = values->line_width;
++    if (mask & GCLineStyle)
++        gc->values.line_style = values->line_style;
++    if (mask & GCCapStyle)
++        gc->values.cap_style = values->cap_style;
++    if (mask & GCJoinStyle)
++        gc->values.join_style = values->join_style;
++    if (mask & GCFillStyle)
++        gc->values.fill_style = values->fill_style;
++    if (mask & GCFillRule)
++        gc->values.fill_rule = values->fill_rule;
++    if (mask & GCArcMode)
++        gc->values.arc_mode = values->arc_mode;
++    if (mask & GCTile)
++        gc->values.tile = values->tile;
++    if (mask & GCStipple)
++        gc->values.stipple = values->stipple;
++    if (mask & GCTileStipXOrigin)
++        gc->values.ts_x_origin = values->ts_x_origin;
++    if (mask & GCTileStipYOrigin)
++        gc->values.ts_y_origin = values->ts_y_origin;
++    if (mask & GCFont)
++        gc->values.font = values->font;
++    if (mask & GCSubwindowMode)
++        gc->values.subwindow_mode = values->subwindow_mode;
++    if (mask & GCGraphicsExposures)
++        gc->values.graphics_exposures = values->graphics_exposures;
++    if (mask & GCClipXOrigin)
++        gc->values.clip_x_origin = values->clip_x_origin;
++    if (mask & GCClipYOrigin)
++        gc->values.clip_y_origin = values->clip_y_origin;
++    if (mask & GCClipMask) {
++        // Presume this is a real pixmap, as we don't control GCValues.
++        XSetClipMask(display, gc, values->clip_mask);
++    }
++    if (mask & GCDashOffset)
++        gc->values.dash_offset = values->dash_offset;
+ #if 0
+ 	// TODO
+ 	if (mask & GCDashList)
+ 		XSetDashes(display, gc, &values->dashes, 2);
+ #endif
+-	gc->dirty = True;
+-	return 0;
++    gc->dirty = True;
++    return 0;
+ }
+ 
+-extern "C" int
+-XCopyGC(Display *display, GC src, unsigned long mask, GC dest)
+-{
+-	int status = XChangeGC(display, dest, mask & ~GCClipMask, &src->values);
+-	if (!status)
+-		return status;
++// extern "C" int
++// XLib::XCopyGC(Display *display, GC src, unsigned long mask, GC dest)
++// {
++// 	int status = XChangeGC(display, dest, mask & ~GCClipMask, &src->values);
++// 	if (!status)
++// 		return status;
+ 
+-	if (mask & GCClipMask) {
+-		ClipMask* clip_mask = (ClipMask*)src->values.clip_mask;
+-		dest->values.clip_mask = (Pixmap)(mask ? new ClipMask(*clip_mask) : None);
+-	}
+-	return 0;
+-}
++// 	if (mask & GCClipMask) {
++// 		ClipMask* clip_mask = (ClipMask*)src->values.clip_mask;
++// 		dest->values.clip_mask = (XLib::Pixmap)(mask ? new ClipMask(*clip_mask) : None);
++// 	}
++// 	return 0;
++// }
+ 
+ extern "C" int
+-XSetFunction(Display *display, GC gc, int function)
++XLib::XSetFunction(Display *display, GC gc, int function)
+ {
+ 	gc->values.function = function;
+ 	gc->dirty = True;
+@@ -197,66 +198,58 @@ XSetFunction(Display *display, GC gc, int function)
+ }
+ 
+ extern "C" int
+-XSetForeground(Display *display, GC gc, unsigned long color)
+-{
+-	gc->values.foreground = color;
+-	gc->dirty = True;
+-	return 0;
+-}
+-
+-extern "C" int
+-XSetBackground(Display *display, GC gc, unsigned long color)
+-{
+-	gc->values.background = color;
+-	gc->dirty = True;
+-	return 0;
+-}
+-
+-extern "C" int
+-XSetGraphicsExposures(Display *display, GC gc, Bool graphics_exposures)
+-{
+-	gc->values.graphics_exposures = graphics_exposures;
+-	return 0;
+-}
+-
+-extern "C" int
+-XSetLineAttributes(Display* display, GC gc,
+-	unsigned int line_width, int line_style, int cap_style, int join_style)
+-{
+-	gc->values.line_width = line_width;
+-	gc->values.line_style = line_style;
+-	gc->values.cap_style = cap_style;
+-	gc->values.join_style = join_style;
+-	gc->dirty = True;
+-	return 0;
+-}
+-
+-extern "C" int
+-XSetFillStyle(Display* display, GC gc, int fill_style)
+-{
+-	gc->values.fill_style = fill_style;
+-	gc->dirty = True;
+-	return 0;
+-}
+-
+-extern "C" int
+-XSetFillRule(Display* display, GC gc, int fill_rule)
++XLib::XSetForeground(Display *display, GC gc, unsigned long color)
+ {
+-	gc->values.fill_rule = fill_rule;
+-	gc->dirty = True;
+-	return 0;
++    gc->values.foreground = color;
++    gc->dirty = True;
++    return 0;
+ }
+ 
+-extern "C" int
+-XSetArcMode(Display* display, GC gc, int arc_mode)
+-{
+-	gc->values.arc_mode = arc_mode;
+-	gc->dirty = True;
+-	return 0;
+-}
++// extern "C" int
++// XSetGraphicsExposures(Display *display, GC gc, Bool graphics_exposures)
++// {
++// 	gc->values.graphics_exposures = graphics_exposures;
++// 	return 0;
++// }
++
++// extern "C" int
++// XSetLineAttributes(Display* display, GC gc,
++// 	unsigned int line_width, int line_style, int cap_style, int join_style)
++// {
++// 	gc->values.line_width = line_width;
++// 	gc->values.line_style = line_style;
++// 	gc->values.cap_style = cap_style;
++// 	gc->values.join_style = join_style;
++// 	gc->dirty = True;
++// 	return 0;
++// }
++
++// extern "C" int
++// XSetFillStyle(Display* display, GC gc, int fill_style)
++// {
++// 	gc->values.fill_style = fill_style;
++// 	gc->dirty = True;
++// 	return 0;
++// }
++
++// extern "C" int
++// XSetFillRule(Display* display, GC gc, int fill_rule)
++// {
++// 	gc->values.fill_rule = fill_rule;
++// 	gc->dirty = True;
++// 	return 0;
++// }
++
++// extern "C" int
++// XSetArcMode(Display* display, GC gc, int arc_mode)
++// {
++// 	gc->values.arc_mode = arc_mode;
++// 	gc->dirty = True;
++// 	return 0;
++// }
+ 
+ extern "C" int
+-XSetFont(Display *display, GC gc, Font font)
++XLib::XSetFont(Display *display, GC gc, Font font)
+ {
+ 	gc->values.font = font;
+ 	gc->dirty = True;
+@@ -264,7 +257,7 @@ XSetFont(Display *display, GC gc, Font font)
+ }
+ 
+ extern "C" int
+-XSetSubwindowMode(Display *display, GC gc, int subwindow_mode)
++XLib::XSetSubwindowMode(Display *display, GC gc, int subwindow_mode)
+ {
+ 	gc->values.subwindow_mode = subwindow_mode;
+ 	gc->dirty = True;
+@@ -272,7 +265,7 @@ XSetSubwindowMode(Display *display, GC gc, int subwindow_mode)
+ }
+ 
+ extern "C" int
+-XSetClipOrigin(Display *display, GC gc, int clip_x_origin, int clip_y_origin)
++XLib::XSetClipOrigin(Display *display, GC gc, int clip_x_origin, int clip_y_origin)
+ {
+ 	gc->values.clip_x_origin = clip_x_origin;
+ 	gc->values.clip_y_origin = clip_y_origin;
+@@ -281,196 +274,197 @@ XSetClipOrigin(Display *display, GC gc, int clip_x_origin, int clip_y_origin)
+ }
+ 
+ static inline ClipMask*
+-gc_clip_mask(GC gc, bool allocate = true)
++gc_clip_mask(XLib::GC gc, bool allocate = true)
+ {
+ 	ClipMask* mask = (ClipMask*)gc->values.clip_mask;
+ 	if (!mask && allocate) {
+ 		mask = new ClipMask;
+-		gc->values.clip_mask = (Pixmap)mask;
++		gc->values.clip_mask = (XLib::Pixmap)mask;
+ 	}
+ 	return mask;
+ }
+ 
+-extern "C" int
+-XSetRegion(Display* display, GC gc, Region r)
+-{
+-	ClipMask* mask = gc_clip_mask(gc);
+-	BRegion* region = (BRegion*)r;
+-	mask->region = *region;
+-	gc->dirty = True;
+-	return Success;
+-}
++// extern "C" int
++// XLib::XSetRegion(Display* display, GC gc, Region r)
++// {
++// 	ClipMask* mask = gc_clip_mask(gc);
++// 	BRegion* region = (BRegion*)r;
++// 	mask->region = *region;
++// 	gc->dirty = True;
++// 	return Success;
++// }
+ 
+ extern "C" int
+-XSetClipRectangles(Display *display, GC gc, int clip_x_origin, int clip_y_origin,
+-	XRectangle* rect, int count, int ordering)
++XLib::XSetClipRectangles(Display *display, GC gc, int clip_x_origin, int clip_y_origin,
++    XRectangle* rect, int count, int /*ordering*/)
+ {
+-	ClipMask* mask = gc_clip_mask(gc);
++    ClipMask* mask = gc_clip_mask(gc);
+ 
+-	XSetClipOrigin(display, gc, clip_x_origin, clip_y_origin);
++    XSetClipOrigin(display, gc, clip_x_origin, clip_y_origin);
+ 
+-	mask->region.MakeEmpty();
+-	for (int i = 0; i < count; i++)
+-		XUnionRectWithRegion(&rect[i], (Region)&mask->region, (Region)&mask->region);
++    mask->region.clear();
++    for (int i = 0; i < count; i++)
++        XUnionRectWithRegion(&rect[i], (Region)&mask->region, (Region)&mask->region);
+ 
+-	gc->dirty = True;
+-	return Success;
++    gc->dirty = True;
++    return Success;
+ }
+ 
+ extern "C" Status
+-XSetClipMask(Display* display, GC gc, Pixmap pixmap)
++XLib::XSetClipMask(Display* display, GC gc, Pixmap pixmap)
+ {
+-	XPixmap* pxm = Drawables::get_pixmap(pixmap);
+-	if (!pxm)
+-		return BadPixmap;
++    auto pxm = ObjectManager::the().get_pixmap(pixmap);
++    if (pxm.is_null())
++        return BadPixmap;
+ 
+-	ClipMask* mask = gc_clip_mask(gc);
+-	mask->region.Set(pxm->offscreen()->Bounds());
++    ClipMask* mask = gc_clip_mask(gc);
++    mask->region.clear();
++    mask->region.add(pxm->bitmap()->rect());
+ 
+-	// TODO: Actually use the pixmap for clipping!
+-	UNIMPLEMENTED();
++    // TODO: Actually use the pixmap for clipping!
++    dbgln("XSetClipMask unimplmeted");
+ 
+-	gc->dirty = True;
+-	return Success;
++    gc->dirty = True;
++    return Success;
+ }
+ 
+ extern "C" Status
+-XSetDashes(Display *display, GC gc, int dash_offset, const char *dash_list, int n)
++XLib::XSetDashes(Display *display, GC gc, int dash_offset, const char *dash_list, int n)
+ {
+ 	// Not supported.
+ 	return BadImplementation;
+ }
+ 
+-void
+-bex_check_gc(XDrawable* drawable, GC gc)
+-{
+-	if (!gc) {
+-		// Use the window's default GC, or make one for it.
+-		if (!drawable->default_gc)
+-			drawable->default_gc = XCreateGC(NULL, 0, 0, NULL);
+-		gc = drawable->default_gc;
+-	}
+-	if (drawable->gc == gc && !gc->dirty)
+-		return;
+-	drawable->gc = gc;
+-
+-	BView* view = drawable->view();
+-
+-	drawing_mode mode;
+-	alpha_function func = B_ALPHA_OVERLAY;
+-	switch (gc->values.function) {
+-	//case GXclear:
+-	case GXand:
+-		mode = B_OP_BLEND;
+-	break;
+-	//case GXandReverse:
+-	case GXcopy:
+-		mode = B_OP_COPY;
+-	break;
+-	case GXandInverted:
+-		mode = B_OP_SUBTRACT;
+-	break;
+-	//case GXnoop:
+-	case GXxor:
+-		mode = B_OP_ALPHA;
+-		func = B_ALPHA_COMPOSITE_SOURCE_IN;
+-	break;
+-	case GXor:
+-		mode = B_OP_ALPHA;
+-		func = B_ALPHA_COMPOSITE_SOURCE_OUT;
+-	break;
+-	//case GXnor:
+-	//case GXequiv:
+-	//case GXinvert:
+-	//case GXorReverse:
+-	//case GXcopyInverted:
+-	//case GXorInverted:
+-	//case GXnand:
+-	//case GXset:
+-	default:
+-		debugger("Unsupported GX mode!");
+-	}
+-	view->SetDrawingMode(mode);
+-	view->SetBlendingMode(B_PIXEL_ALPHA, func);
+-
+-	view->SetHighColor(_x_pixel_to_rgb(gc->values.foreground));
+-	view->SetLowColor(_x_pixel_to_rgb(gc->values.background));
+-	view->SetPenSize(gc->values.line_width);
+-
+-	cap_mode cap;
+-	switch (gc->values.cap_style) {
+-	case CapRound:
+-		cap = B_ROUND_CAP;
+-		break;
+-	case CapProjecting:
+-		cap = B_SQUARE_CAP;
+-		break;
+-	case CapNotLast:
+-	case CapButt:
+-		cap = B_ROUND_CAP;
+-		break;
+-	default:
+-		debugger("Unknown cap mode!");
+-		break;
+-	}
+-
+-	join_mode join;
+-	switch (gc->values.join_style) {
+-	case JoinRound:
+-		join = B_ROUND_JOIN;
+-		break;
+-	case JoinBevel:
+-		join = B_BEVEL_JOIN;
+-		break;
+-	case JoinMiter:
+-		join = B_MITER_JOIN;
+-		break;
+-	default:
+-		debugger("Unknown join style!");
+-		break;
+-	}
+-	view->SetLineMode(cap, join);
+-
+-	int32 fillRule = 0;
+-	switch (gc->values.fill_rule) {
+-	case EvenOddRule:
+-		fillRule = B_EVEN_ODD;
+-		break;
+-	case WindingRule:
+-		fillRule = B_NONZERO;
+-		break;
+-	default:
+-		debugger("Unknown fill rule!");
+-		break;
+-	}
+-	view->SetFillRule(fillRule);
+-
+-	// TODO: use mask!
+-	if (gc->values.font) {
+-		BFont bfont = bfont_from_font(gc->values.font);
+-		view->SetFont(&bfont);
+-	}
+-
+-	// TODO: use mask!
+-	switch (gc->values.subwindow_mode) {
+-	case ClipByChildren:
+-		view->SetFlags(view->Flags() & ~B_DRAW_ON_CHILDREN);
+-		break;
+-	case IncludeInferiors:
+-		view->SetFlags(view->Flags() | B_DRAW_ON_CHILDREN);
+-		break;
+-	default:
+-		debugger("Unsupported subwindow mode!");
+-	}
+-
+-	// TODO: use mask!
+-	view->ConstrainClippingRegion(NULL);
+-	ClipMask* mask = gc_clip_mask(gc, false);
+-	if (mask && mask->region.CountRects()) {
+-		BRegion region = mask->region;
+-		region.OffsetBy(gc->values.clip_x_origin, gc->values.clip_y_origin);
+-		view->ConstrainClippingRegion(&region);
+-	}
+-
+-	gc->dirty = False;
+-}
++// void
++// bex_check_gc(XDrawable* drawable, GC gc)
++// {
++// 	if (!gc) {
++// 		// Use the window's default GC, or make one for it.
++// 		if (!drawable->default_gc)
++// 			drawable->default_gc = XCreateGC(NULL, 0, 0, NULL);
++// 		gc = drawable->default_gc;
++// 	}
++// 	if (drawable->gc == gc && !gc->dirty)
++// 		return;
++// 	drawable->gc = gc;
++
++// 	BView* view = drawable->view();
++
++// 	drawing_mode mode;
++// 	alpha_function func = B_ALPHA_OVERLAY;
++// 	switch (gc->values.function) {
++// 	//case GXclear:
++// 	case GXand:
++// 		mode = B_OP_BLEND;
++// 	break;
++// 	//case GXandReverse:
++// 	case GXcopy:
++// 		mode = B_OP_COPY;
++// 	break;
++// 	case GXandInverted:
++// 		mode = B_OP_SUBTRACT;
++// 	break;
++// 	//case GXnoop:
++// 	case GXxor:
++// 		mode = B_OP_ALPHA;
++// 		func = B_ALPHA_COMPOSITE_SOURCE_IN;
++// 	break;
++// 	case GXor:
++// 		mode = B_OP_ALPHA;
++// 		func = B_ALPHA_COMPOSITE_SOURCE_OUT;
++// 	break;
++// 	//case GXnor:
++// 	//case GXequiv:
++// 	//case GXinvert:
++// 	//case GXorReverse:
++// 	//case GXcopyInverted:
++// 	//case GXorInverted:
++// 	//case GXnand:
++// 	//case GXset:
++// 	default:
++// 		debugger("Unsupported GX mode!");
++// 	}
++// 	view->SetDrawingMode(mode);
++// 	view->SetBlendingMode(B_PIXEL_ALPHA, func);
++
++// 	view->SetHighColor(_x_pixel_to_rgb(gc->values.foreground));
++// 	view->SetLowColor(_x_pixel_to_rgb(gc->values.background));
++// 	view->SetPenSize(gc->values.line_width);
++
++// 	cap_mode cap;
++// 	switch (gc->values.cap_style) {
++// 	case CapRound:
++// 		cap = B_ROUND_CAP;
++// 		break;
++// 	case CapProjecting:
++// 		cap = B_SQUARE_CAP;
++// 		break;
++// 	case CapNotLast:
++// 	case CapButt:
++// 		cap = B_ROUND_CAP;
++// 		break;
++// 	default:
++// 		debugger("Unknown cap mode!");
++// 		break;
++// 	}
++
++// 	join_mode join;
++// 	switch (gc->values.join_style) {
++// 	case JoinRound:
++// 		join = B_ROUND_JOIN;
++// 		break;
++// 	case JoinBevel:
++// 		join = B_BEVEL_JOIN;
++// 		break;
++// 	case JoinMiter:
++// 		join = B_MITER_JOIN;
++// 		break;
++// 	default:
++// 		debugger("Unknown join style!");
++// 		break;
++// 	}
++// 	view->SetLineMode(cap, join);
++
++// 	int32 fillRule = 0;
++// 	switch (gc->values.fill_rule) {
++// 	case EvenOddRule:
++// 		fillRule = B_EVEN_ODD;
++// 		break;
++// 	case WindingRule:
++// 		fillRule = B_NONZERO;
++// 		break;
++// 	default:
++// 		debugger("Unknown fill rule!");
++// 		break;
++// 	}
++// 	view->SetFillRule(fillRule);
++
++// 	// TODO: use mask!
++// 	if (gc->values.font) {
++// 		BFont bfont = bfont_from_font(gc->values.font);
++// 		view->SetFont(&bfont);
++// 	}
++
++// 	// TODO: use mask!
++// 	switch (gc->values.subwindow_mode) {
++// 	case ClipByChildren:
++// 		view->SetFlags(view->Flags() & ~B_DRAW_ON_CHILDREN);
++// 		break;
++// 	case IncludeInferiors:
++// 		view->SetFlags(view->Flags() | B_DRAW_ON_CHILDREN);
++// 		break;
++// 	default:
++// 		debugger("Unsupported subwindow mode!");
++// 	}
++
++// 	// TODO: use mask!
++// 	view->ConstrainClippingRegion(NULL);
++// 	ClipMask* mask = gc_clip_mask(gc, false);
++// 	if (mask && mask->region.CountRects()) {
++// 		BRegion region = mask->region;
++// 		region.OffsetBy(gc->values.clip_x_origin, gc->values.clip_y_origin);
++// 		view->ConstrainClippingRegion(&region);
++// 	}
++
++// 	gc->dirty = False;
++// }
+diff --git a/xlib/Image.cpp b/xlib/Image.cpp
+index 502c3a0..6ceda6c 100644
+--- a/xlib/Image.cpp
++++ b/xlib/Image.cpp
+@@ -2,243 +2,218 @@
+  * Copyright 2021, Haiku, Inc. All rights reserved.
+  * Distributed under the terms of the MIT license.
+  */
+-
+-#include <stdio.h>
+-#include <interface/Bitmap.h>
+-
+-#include "Drawables.h"
+ #include "Drawing.h"
+-#include "Debug.h"
+-#include "Color.h"
+-#include "Image.h"
++#include "ObjectManager.h"
++#include <LibGfx/Bitmap.h>
+ 
++namespace XLib {
+ extern "C" {
++#define register
+ #include <X11/Xlib.h>
++#define Bool int
+ #include <X11/Xlibint.h>
+-#include <X11/extensions/XShm.h>
++#include <X11/Xutil.h>
++#undef register
+ }
+-
+-extern "C" int
+-_XInitImageFuncPtrs(XImage *image)
+-{
+-	return 0;
+ }
+ 
+ static int
+-DestroyImage(XImage* image)
++DestroyImage(XLib::XImage* image)
+ {
+-	free(image->data);
+-	delete image;
+-	return Success;
++    free(image->data);
++    delete image;
++    return Success;
+ }
+ 
+-static inline uint8*
+-GetImageDataPointer(XImage* image, int x, int y)
++static inline uint8_t*
++GetImageDataPointer(XLib::XImage* image, int x, int y)
+ {
+-	return (uint8*)&(image->data[
+-		(y * image->bytes_per_line) + ((x * image->bitmap_unit) / NBBY)]);
++    return (uint8_t*)&(image->data[
++        (y * image->bytes_per_line) + ((x * image->bitmap_unit) / CHAR_BIT)]);
+ }
+ 
+ static unsigned long
+-ImageGetPixel(XImage* image, int x, int y)
++ImageGetPixel(XLib::XImage* image, int x, int y)
+ {
+-	unsigned long pixel = 0;
+-	uint8* srcPtr = GetImageDataPointer(image, x, y);
+-
+-	switch (image->bits_per_pixel) {
+-	case 1:
+-		pixel = ((*srcPtr) & (0x80 >> (x % 8))) ? 1 : 0;
+-		break;
+-	case 8:
+-		pixel = *srcPtr;
+-		break;
+-	case 15:
+-	case 16:
+-		pixel = *(uint16*)srcPtr;
+-		break;
+-	case 24:
+-		pixel = srcPtr[0] | (srcPtr[1] << 8) | (srcPtr[2] << 16);
+-		break;
+-	case 32:
+-		pixel = *(uint32*)srcPtr;
+-		break;
+-	}
+-	return pixel;
++    unsigned long pixel = 0;
++    uint8_t* srcPtr = GetImageDataPointer(image, x, y);
++
++    switch (image->bits_per_pixel) {
++    case 1:
++        pixel = ((*srcPtr) & (0x80 >> (x % 8))) ? 1 : 0;
++        break;
++    case 8:
++        pixel = *srcPtr;
++        break;
++    case 15:
++    case 16:
++        pixel = srcPtr[0] | (srcPtr[1] << 8);
++        break;
++    case 24:
++        pixel = srcPtr[0] | (srcPtr[1] << 8) | (srcPtr[2] << 16);
++        break;
++    case 32:
++        pixel = srcPtr[0] | (srcPtr[1] << 8) | (srcPtr[2] << 16) | (srcPtr[3] << 24);
++        break;
++    }
++    return pixel;
+ }
+ 
+ static int
+-ImagePutPixel(XImage* image, int x, int y, unsigned long pixel)
++ImagePutPixel(XLib::XImage* image, int x, int y, unsigned long pixel)
+ {
+-	uint8* destPtr = GetImageDataPointer(image, x, y);
+-
+-	switch (image->bits_per_pixel) {
+-	case 1: {
+-		int mask = (0x80 >> (x % 8));
+-		if (pixel) {
+-			(*destPtr) |= mask;
+-		} else {
+-			(*destPtr) &= ~mask;
+-		}
+-		break;
+-	}
+-	case 8:
+-		*destPtr = pixel;
+-		break;
+-	case 15:
+-	case 16:
+-		*((uint16*)destPtr) = (uint16)(pixel & 0xFFFF);
+-		break;
+-	case 24: {
+-		uint8* srcPtr = (uint8*)&pixel;
+-		destPtr[0] = srcPtr[0];
+-		destPtr[1] = srcPtr[1];
+-		destPtr[2] = srcPtr[2];
+-		break;
+-	}
+-	case 32:
+-		*((uint32*)destPtr) = pixel;
+-		break;
+-	}
+-	return 0;
++    uint8_t* destPtr = GetImageDataPointer(image, x, y);
++    uint8_t* srcPtr = (uint8_t*)&pixel;
++    switch (image->bits_per_pixel) {
++    case 1: {
++        int mask = (0x80 >> (x % 8));
++        if (pixel) {
++            (*destPtr) |= mask;
++        } else {
++            (*destPtr) &= ~mask;
++        }
++        break;
++    }
++    case 8:
++        *destPtr = pixel;
++        break;
++    case 15:
++    case 16:
++        destPtr[0] = srcPtr[0];
++        destPtr[1] = srcPtr[1];
++        break;
++    case 24: {
++        destPtr[0] = srcPtr[0];
++        destPtr[1] = srcPtr[1];
++        destPtr[2] = srcPtr[2];
++        break;
++    }
++    case 32:
++        destPtr[0] = srcPtr[0];
++        destPtr[1] = srcPtr[1];
++        destPtr[2] = srcPtr[2];
++        destPtr[3] = srcPtr[3];
++        break;
++    }
++    return 0;
+ }
+ 
+-extern "C" XImage*
+-XCreateImage(Display *display, Visual *visual,
+-	unsigned int depth, int format, int offset, char *data,
+-	unsigned int width, unsigned int height,
+-	int bitmap_pad, int bytes_per_line)
++extern "C" XLib::XImage*
++XLib::XCreateImage(Display *display, Visual *visual,
++    unsigned int depth, int format, int offset, char *data,
++    unsigned int width, unsigned int height,
++    int bitmap_pad, int bytes_per_line)
+ {
+-	if (format != ZPixmap)
+-		return NULL;
+-
+-	XImage* image = new XImage;
+-	if (!image)
+-		return NULL;
+-	memset(image, 0, sizeof(XImage));
+-
+-	image->height = height;
+-	image->width = width;
+-	image->depth = depth;
+-	image->xoffset = offset;
+-	image->format = format;
+-	image->data = data;
+-	image->bitmap_pad = bitmap_pad;
+-
+-	if (depth == 8) {
+-		image->bits_per_pixel = image->bitmap_unit = 8;
+-	} else {
+-		if (!visual && depth >= 24)
+-			visual = display->screens[0].root_visual;
+-		image->bits_per_pixel = depth;
+-		image->bitmap_unit = ((depth+7)/8)*8;
+-	}
+-	image->bytes_per_line = bytes_per_line;
+-
+-	image->byte_order = LSBFirst;
+-	image->bitmap_bit_order = LSBFirst;
+-	if (visual) {
+-		image->red_mask = visual->red_mask;
+-		image->green_mask = visual->green_mask;
+-		image->blue_mask = visual->blue_mask;
+-	}
+-
+-	if (!XInitImage(image)) {
+-		delete image;
+-		return NULL;
+-	}
+-
+-	return image;
++    if (format != ZPixmap)
++        return NULL;
++
++    XImage* image = new XImage;
++    if (!image)
++        return NULL;
++    memset(image, 0, sizeof(XImage));
++
++    image->height = height;
++    image->width = width;
++    image->depth = depth;
++    image->xoffset = offset;
++    image->format = format;
++    image->data = data;
++    image->bitmap_pad = bitmap_pad;
++
++    if (depth == 8) {
++        image->bits_per_pixel = image->bitmap_unit = 8;
++    } else {
++        if (!visual && depth >= 24)
++            visual = display->screens[0].root_visual;
++        image->bits_per_pixel = depth;
++        image->bitmap_unit = ((depth+7)/8)*8;
++    }
++    image->bytes_per_line = bytes_per_line;
++
++    image->byte_order = LSBFirst;
++    image->bitmap_bit_order = LSBFirst;
++    if (visual) {
++        image->red_mask = visual->red_mask;
++        image->green_mask = visual->green_mask;
++        image->blue_mask = visual->blue_mask;
++    }
++
++    if (!XInitImage(image)) {
++        delete image;
++        return NULL;
++    }
++
++    return image;
+ }
+ 
+ extern "C" Status
+-XInitImage(XImage* image)
++XLib::XInitImage(XImage* image)
+ {
+-	if (image->bytes_per_line == 0) {
+-		image->bytes_per_line = image->width * (image->bitmap_unit / 8);
++    if (image->bytes_per_line == 0) {
++        image->bytes_per_line = image->width * (image->bitmap_unit / 8);
+ 
+ 		const int align = image->bitmap_pad / 8;
+-		if (align)
+-			image->bytes_per_line = ((image->bytes_per_line + align - 1) / align) * align;
+-	}
++        if (align)
++            image->bytes_per_line = ((image->bytes_per_line + align - 1) / align) * align;
++    }
+ 
+-	memset(&image->f, 0, sizeof(image->f));
+-	image->f.destroy_image = DestroyImage;
+-	image->f.get_pixel = ImageGetPixel;
+-	image->f.put_pixel = ImagePutPixel;
++    memset(&image->f, 0, sizeof(image->f));
++    image->f.destroy_image = DestroyImage;
++    image->f.get_pixel = ImageGetPixel;
++    image->f.put_pixel = ImagePutPixel;
+ 
+-	return 1;
++    return 1;
+ }
+ 
+-BBitmap*
+-_bbitmap_for_ximage(XImage *image, uint32 flags)
+-{
+-	BBitmap* bitmap = new BBitmap(brect_from_xrect(make_xrect(0, 0, image->width, image->height)),
+-		flags, _x_color_space_for(NULL, image->bits_per_pixel), image->bytes_per_line);
+-	if (!bitmap || bitmap->InitCheck() != B_OK) {
+-		fprintf(stderr, "libX11: Failed to create bitmap for XImage!\n");
+-		debugger("X");
+-		return NULL;
+-	}
+-	return bitmap;
+-}
+ 
+-extern "C" XImage*
+-XGetSubImage(Display* display, Drawable d,
+-	int x, int y, unsigned int width, unsigned int height,
+-	unsigned long plane_mask, int format,
+-	XImage* dest_image, int dest_x, int dest_y)
++extern "C" XLib::XImage*
++XLib::XGetSubImage(Display* /*display*/, Drawable d,
++    int x, int y, unsigned int width, unsigned int height,
++    unsigned long /*plane_mask*/, int format,
++    XImage* dest_image, int dest_x, int dest_y)
+ {
+-	XPixmap* pixmap = Drawables::get_pixmap(d);
+-	if (!pixmap)
+-		return NULL;
+-	pixmap->sync();
+-
+-	if (format != ZPixmap)
+-		return NULL;
+-
+-	// TODO: plane_mask?
+-
+-	if (!dest_image->data)
+-		dest_image->data = (char*)malloc(dest_image->bytes_per_line * dest_image->height);
+-
+-	BBitmap* import = _bbitmap_for_ximage(dest_image, B_BITMAP_NO_SERVER_LINK);
+-	if (!import)
+-		return NULL;
+-
+-	const BRect dest_rect = brect_from_xrect(make_xrect(dest_x, dest_y, width, height));
+-#if B_HAIKU_VERSION	>= B_HAIKU_VERSION_1_PRE_BETA_4
+-	import->ImportBits(pixmap->offscreen(), BPoint(x, y), dest_rect.LeftTop(),
+-		dest_rect.Size());
+-#else
+-	// NOTE: Unlike most other Be API functions, ImportBits() takes pixel count, not span!
+-	// BSize variants are being added that make much more sense.
+-	import->ImportBits(pixmap->offscreen(), BPoint(x, y), dest_rect.LeftTop(),
+-		dest_rect.IntegerWidth() + 1, dest_rect.IntegerHeight() + 1);
+-#endif
+-
+-	memcpy(dest_image->data, import->Bits(), dest_image->height * dest_image->bytes_per_line);
+-	delete import;
+-	return dest_image;
++    auto pixmap = ObjectManager::the().get_pixmap(d);
++    if (pixmap.is_null())
++        return NULL;
++
++    if (format != ZPixmap)
++        return NULL;
++
++    auto cropped = MUST(pixmap->bitmap()->cropped(Gfx::IntRect (x, y, width, height)));
++
++    // TODO: plane_mask?
++
++    if (!dest_image->data)
++        dest_image->data = (char*)malloc(dest_image->bytes_per_line * dest_image->height);
++
++    auto dest_bitmap = MUST(Gfx::Bitmap::try_create(Gfx::BitmapFormat::BGRA8888, Gfx::IntSize(width, height)));
++
++    Gfx::Painter painter(dest_bitmap);
++    painter.draw_tiled_bitmap(Gfx::IntRect(dest_x, dest_y, width, height), cropped);
++
++    memcpy(dest_image->data, dest_bitmap->anonymous_buffer().data<char>(), dest_image->height * dest_image->bytes_per_line);
++    return dest_image;
+ }
+ 
+-extern "C" XImage*
+-XGetImage(Display *display, Drawable d,
+-	int x, int y, unsigned int width, unsigned int height,
+-	unsigned long plane_mask, int format)
++extern "C" XLib::XImage*
++XLib::XGetImage(Display *display, Drawable d,
++    int x, int y, unsigned int width, unsigned int height,
++    unsigned long plane_mask, int format)
+ {
+-	XPixmap* pixmap = Drawables::get_pixmap(d);
+-	if (!pixmap)
+-		return NULL;
++    auto pixmap = ObjectManager::the().get_pixmap(d);
++    if (pixmap.is_null())
++        return NULL;
+ 
+-	XImage* image = XCreateImage(display, NULL, pixmap->depth(), format, 0, NULL,
+-		width, height, 32, 0);
+-	if (!image)
+-		return NULL;
++    XImage* image = XCreateImage(display, NULL, pixmap->depth(), format, 0, NULL,
++        width, height, 32, 0);
++    if (!image)
++        return NULL;
+ 
+-	if (!XGetSubImage(display, d, x, y, width, height, plane_mask, format, image, 0, 0)) {
+-		XDestroyImage(image);
+-		return NULL;
+-	}
++    if (!XGetSubImage(display, d, x, y, width, height, plane_mask, format, image, 0, 0)) {
++        XDestroyImage(image);
++        return NULL;
++    }
+ 
+-	return image;
++    return image;
+ }
++
+diff --git a/xlib/Image.h b/xlib/Image.h
+index 29a5635..51a1b55 100644
+--- a/xlib/Image.h
++++ b/xlib/Image.h
+@@ -4,10 +4,8 @@
+  */
+ #pragma once
+ 
+-#include <interface/Bitmap.h>
++// extern "C" {
++// #include <X11/Xlib.h>
++// }
+ 
+-extern "C" {
+-#include <X11/Xlib.h>
+-}
+-
+-BBitmap* _bbitmap_for_ximage(XImage* image, uint32 flags = 0);
++// BBitmap* _bbitmap_for_ximage(XImage* image, uint32 flags = 0);
+diff --git a/xlib/Lock.h b/xlib/Lock.h
+index 21456c4..644d2de 100644
+--- a/xlib/Lock.h
++++ b/xlib/Lock.h
+@@ -5,6 +5,7 @@
+ #pragma once
+ 
+ #ifdef __cplusplus
++namespace XLib {
+ extern "C" {
+ #endif
+ 
+@@ -37,4 +38,5 @@ _XCreateMutex(struct _XLockInfo* info)
+ 
+ #ifdef __cplusplus
+ } // extern "C"
++} // namespace XLib
+ #endif
+diff --git a/xlib/ObjectManager.cpp b/xlib/ObjectManager.cpp
+new file mode 100644
+index 0000000..45bb7f2
+--- /dev/null
++++ b/xlib/ObjectManager.cpp
+@@ -0,0 +1,59 @@
++#include "ObjectManager.h"
++
++ObjectManager& ObjectManager::the()
++{
++    static ObjectManager obj;
++    return obj;
++}
++
++AK::RefPtr<XWindow> ObjectManager::get_window(XLib::Window xlib_window) const
++{
++    if(m_windows.contains(xlib_window))
++        return m_windows.get(xlib_window).value();
++
++    return nullptr;
++}
++
++XLib::Window ObjectManager::add_window(AK::RefPtr<XWindow> window)
++{
++    auto xid = next_xid();
++    m_windows.set(xid, window);
++    return xid;
++}
++
++void ObjectManager::remove_window(XLib::Window xlib_window)
++{
++    m_windows.remove(xlib_window);
++}
++
++AK::RefPtr<XPixmap> ObjectManager::get_pixmap(XLib::Pixmap xlib_pixmap) const
++{
++    if(m_pixmaps.contains(xlib_pixmap))
++        return m_pixmaps.get(xlib_pixmap).value();
++
++    return nullptr;
++}
++
++XLib::Pixmap ObjectManager::add_pixmap(AK::RefPtr<XPixmap> pixmap)
++{
++    auto xid = next_xid();
++    m_pixmaps.set(xid, pixmap);
++    return xid;
++}
++
++void ObjectManager::remove_pixmap(XLib::Pixmap xlib_pixmap)
++{
++    m_pixmaps.remove(xlib_pixmap);
++}
++
++AK::RefPtr<XDrawable> ObjectManager::get_drawable(XLib::Drawable xlib_drawable) const
++{
++    if(m_pixmaps.contains(xlib_drawable)) {
++        return *(m_pixmaps.get(xlib_drawable).value());
++    }
++
++    if(m_windows.contains(xlib_drawable))
++        return *(m_windows.get(xlib_drawable).value());
++
++    return nullptr;
++}
+\ No newline at end of file
+diff --git a/xlib/ObjectManager.h b/xlib/ObjectManager.h
+new file mode 100644
+index 0000000..79ca2e1
+--- /dev/null
++++ b/xlib/ObjectManager.h
+@@ -0,0 +1,37 @@
++#pragma once
++
++// #include "Undef.h"
++#include <AK/HashMap.h>
++#include <LibCore/Object.h>
++#include "XWindow.h"
++#include "XPixmap.h"
++
++namespace XLib {
++extern "C" {
++#include "X11/Xlib.h"
++}
++}
++
++class ObjectManager {
++public:
++    static ObjectManager& the();
++    ObjectManager() = default;
++
++    AK::RefPtr<XWindow> get_window(XLib::Window xlib_window) const;
++    XLib::Window add_window(AK::RefPtr<XWindow> window);
++    void remove_window(XLib::Window xlib_window);
++
++    AK::RefPtr<XPixmap> get_pixmap(XLib::Pixmap xlib_pixmap) const;
++    XLib::Pixmap add_pixmap(AK::RefPtr<XPixmap> pixmap);
++    void remove_pixmap(XLib::Pixmap xlib_pixmap);
++
++    AK::RefPtr<XDrawable> get_drawable(XLib::Drawable xlib_drawable) const;
++private:
++    XLib::XID next_xid() {
++        static XLib::XID xid{0};
++        return xid++;
++    }
++
++    AK::HashMap<XLib::XID, AK::RefPtr<XWindow>> m_windows;
++    AK::HashMap<XLib::XID, AK::RefPtr<XPixmap>> m_pixmaps;
++};
+diff --git a/xlib/Property.h b/xlib/Property.h
+index c975d3f..aa1f332 100644
+--- a/xlib/Property.h
++++ b/xlib/Property.h
+@@ -6,19 +6,21 @@
+ 
+ #include <cstring>
+ 
++namespace XLib {
+ extern "C" {
+ #include <X11/Xutil.h>
+ }
++}
+ 
+-static inline XTextProperty
+-make_text_property(Atom type, int format, const void* data, int length = -1, bool copy = false)
++static inline XLib::XTextProperty
++make_text_property(XLib::Atom type, int format, void* data, int length = -1, bool copy = false)
+ {
+-	XTextProperty ret;
+-	ret.encoding = type;
+-	ret.format = format;
+-	ret.value = copy ? (unsigned char*)strdup((const char*)data) : (unsigned char*)data;
+-	ret.nitems = length < 0 ? (ret.value ? strlen((const char*)ret.value) : 0) : length;
+-	return ret;
++    XLib::XTextProperty ret;
++    ret.encoding = type;
++    ret.format = format;
++    ret.value = copy ? (unsigned char*)strdup((const char*)data) : (unsigned char*)data;
++    ret.nitems = length < 0 ? (ret.value ? strlen((const char*)ret.value) : 0) : length;
++    return ret;
+ }
+ 
+-void _x_handle_send_root(Display* dpy, const XEvent& event);
++void _x_handle_send_root(XLib::Display* dpy, const XLib::XEvent& event);
+diff --git a/xlib/Region.cpp b/xlib/Region.cpp
+index e57d532..cdb0554 100644
+--- a/xlib/Region.cpp
++++ b/xlib/Region.cpp
+@@ -47,12 +47,13 @@ XUnionRegion(Region srcA, Region srcB, Region res)
+ }
+ 
+ extern "C" int
+-XUnionRectWithRegion(XRectangle* rect, Region src, Region res)
++XLib::XUnionRectWithRegion(XRectangle* rect, Region src, Region res)
+ {
+-	BRegion* source = (BRegion*)src, *result = (BRegion*)res;
+-	*result = *source;
+-	result->Include(brect_from_xrect(*rect));
+-	return Success;
++    Gfx::DisjointRectSet* source = (Gfx::DisjointRectSet*)src, *result = (Gfx::DisjointRectSet*)res;
++    result->clear();
++    result->add_many(source->rects());
++    result->add(intrect_from_xrect(*rect));
++    return Success;
+ }
+ 
+ extern "C" int
+diff --git a/xlib/Undef.h b/xlib/Undef.h
+new file mode 100644
+index 0000000..398e60c
+--- /dev/null
++++ b/xlib/Undef.h
+@@ -0,0 +1,5 @@
++#undef Bool
++#undef None
++#undef FocusIn
++#undef FocusOut
++#undef WindingRule
+\ No newline at end of file
+diff --git a/xlib/XDrawable.h b/xlib/XDrawable.h
+new file mode 100644
+index 0000000..f46c5e7
+--- /dev/null
++++ b/xlib/XDrawable.h
+@@ -0,0 +1,11 @@
++#pragma once
++
++#include "LibGUI/Painter.h"
++
++class XDrawable : public Core::Object {
++    C_OBJECT_ABSTRACT(XDrawable)
++public:
++    virtual GUI::Painter& painter() = 0;
++    virtual AK::RefPtr<Gfx::Bitmap> bitmap() = 0;
++    virtual ~XDrawable() = default;
++};
+\ No newline at end of file
+diff --git a/xlib/XPixmap.cpp b/xlib/XPixmap.cpp
+new file mode 100644
+index 0000000..f81b491
+--- /dev/null
++++ b/xlib/XPixmap.cpp
+@@ -0,0 +1,11 @@
++#include "XPixmap.h"
++#include "ObjectManager.h"
++
++XPixmap::XPixmap(XLib::Display* dpy, Gfx::IntRect frame) :
++    m_id(ObjectManager::the().add_pixmap(*this)),
++    m_display(dpy),
++    m_frame(frame),
++    m_bitmap(Gfx::Bitmap::try_create(Gfx::BitmapFormat::RGBA8888, frame.size()).release_value_but_fixme_should_propagate_errors()),
++    m_painter(*m_bitmap)
++{
++}
+\ No newline at end of file
+diff --git a/xlib/XPixmap.h b/xlib/XPixmap.h
+new file mode 100644
+index 0000000..55b478a
+--- /dev/null
++++ b/xlib/XPixmap.h
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <LibCore/Object.h>
++#include <LibGfx/Bitmap.h>
++#include <LibGfx/Rect.h>
++#include <LibGUI/Painter.h>
++
++#include "XDrawable.h"
++
++namespace XLib {
++extern "C" {
++#include <X11/Xlib.h>
++}
++}
++
++class XPixmap : public XDrawable {
++    C_OBJECT(XPixmap)
++public:
++    XLib::Pixmap id() { return m_id; }
++
++    AK::RefPtr<Gfx::Bitmap> bitmap() override { return m_bitmap; }
++    GUI::Painter& painter() override { return m_painter; }
++
++    int depth() { return m_depth; }
++private:
++    XPixmap(XLib::Display* dpy, Gfx::IntRect frame);
++
++    XLib::Pixmap m_id;
++    XLib::Display * m_display;
++    Gfx::IntRect m_frame;
++
++    AK::RefPtr<Gfx::Bitmap> m_bitmap;
++    GUI::Painter m_painter;
++
++    const int m_depth = 32;
++};
+\ No newline at end of file
+diff --git a/xlib/XWindow.cpp b/xlib/XWindow.cpp
+new file mode 100644
+index 0000000..d273272
+--- /dev/null
++++ b/xlib/XWindow.cpp
+@@ -0,0 +1,77 @@
++#include "XWindow.h"
++#include "ObjectManager.h"
++#include "Drawing.h"
++#include "Event.h"
++
++namespace XLib {
++extern "C" {
++#include <X11/Xlib.h>
++}
++}
++
++XWindow::XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::IntRect frame) :
++    m_id(ObjectManager::the().add_window(this)),
++    m_display(display),
++    m_bitmap(Gfx::Bitmap::try_create(Gfx::BitmapFormat::BGRA8888, frame.size()).release_value_but_fixme_should_propagate_errors()),
++    m_painter(*m_bitmap),
++    m_widget(_XWidgetImpl::try_create(*this).release_value_but_fixme_should_propagate_errors())
++{
++    dbgln("XWindow ctor start");
++    m_window = host_window;
++    m_widget->set_window(host_window);
++    m_widget->set_relative_rect(frame);
++    dbgln("XWindow ctor end");
++}
++
++void XWindow::event_mask(long mask)
++{
++    m_event_mask = mask;
++}
++
++XWindow* XWindow::parent_window()
++{
++    return dynamic_cast<XWindow*>(this->parent());
++}
++
++_XWidgetImpl::_XWidgetImpl(XWindow& xWindow) :
++    m_xWindow(xWindow)
++{
++    dbgln("_XWidgetImpl ctor");
++}
++
++void _XWidgetImpl::paint_event(GUI::PaintEvent& ev)
++{
++    dbgln("Paint event");
++
++    XLib::XEvent event;
++    XLib::XRectangle exposed = xrect_from_intrect(ev.rect());
++    event.type = Expose;
++    event.xany.window = m_xWindow.id();
++    event.xexpose.x = exposed.x;
++    event.xexpose.y = exposed.y;
++    event.xexpose.width = exposed.width;
++    event.xexpose.height = exposed.height;
++    event.xexpose.count = 0;
++    _x_put_event(m_xWindow.m_display, event);
++
++    GUI::Painter p(*this);
++    p.draw_tiled_bitmap(rect(), m_xWindow.m_bitmap);
++}
++
++void _XWidgetImpl::resize_event(GUI::ResizeEvent& e)
++{
++    m_xWindow.m_bitmap = MUST(Gfx::Bitmap::try_create(Gfx::BitmapFormat::BGRA8888, e.size()));
++    GUI::Painter painter(*(m_xWindow.m_bitmap));
++    m_xWindow.m_painter = painter;
++
++    XLib::XEvent event;
++    XLib::XRectangle exposed = xrect_from_intrect(Gfx::IntRect(0,0, e.size().width(), e.size().height()));
++    event.type = Expose;
++    event.xany.window = m_xWindow.id();
++    event.xexpose.x = exposed.x;
++    event.xexpose.y = exposed.y;
++    event.xexpose.width = exposed.width;
++    event.xexpose.height = exposed.height;
++    event.xexpose.count = 0;
++    _x_put_event(m_xWindow.m_display, event);
++}
+diff --git a/xlib/XWindow.h b/xlib/XWindow.h
+new file mode 100644
+index 0000000..116b93e
+--- /dev/null
++++ b/xlib/XWindow.h
+@@ -0,0 +1,68 @@
++#pragma once
++
++#include "LibGUI/Painter.h"
++#include "LibGUI/Window.h"
++#include "LibGUI/Widget.h"
++#include "LibCore/Object.h"
++
++#include "XDrawable.h"
++
++namespace XLib {
++extern "C" {
++#include <X11/Xlib.h>
++}
++}
++
++class XWindow;
++
++class _XWidgetImpl : public GUI::Widget {
++    C_OBJECT(_XWidgetImpl)
++
++protected:
++    void paint_event(GUI::PaintEvent&) override;
++    void resize_event(GUI::ResizeEvent&) override;
++
++private:
++    _XWidgetImpl(XWindow& xWindow);
++
++    XWindow& m_xWindow;
++};
++
++class XWindow : /*public GUI::Widget,*/ public XDrawable {
++    friend _XWidgetImpl;
++    C_OBJECT(XWindow)
++public:
++    XLib::Window id() const {
++        return m_id;
++    }
++
++    long event_mask() const { return m_event_mask; }
++    void event_mask(long mask);
++
++    XWindow* parent_window();
++
++    GUI::Painter& painter() override { return m_painter; }
++
++    AK::NonnullRefPtr<_XWidgetImpl> widget() { return m_widget; }
++
++    AK::RefPtr<Gfx::Bitmap> bitmap() override { return m_bitmap;}
++
++    XLib::Display * display() { return m_display; }
++
++    AK::RefPtr<GUI::Window> host_window() { return m_window; }
++
++private:
++    XWindow(XLib::Display* display, RefPtr<GUI::Window> host_window, Gfx::IntRect frame);
++
++    XLib::Window m_id;
++    XLib::Display * m_display;
++
++    long m_event_mask;
++
++    AK::RefPtr<GUI::Window> m_window;
++
++    AK::NonnullRefPtr<Gfx::Bitmap> m_bitmap;
++    GUI::Painter m_painter;
++
++    AK::NonnullRefPtr<_XWidgetImpl> m_widget;
++};
+\ No newline at end of file
